@@ -34,8 +34,6 @@ for block in tqdm(blocks):
     sae, _, _ = SAE.from_pretrained(release="gpt2-small-res-jb", sae_id=f"blocks.{block}.hook_resid_pre", device=device)
     saes.append(sae)
 
-
-# %%
 dataset = load_dataset(path = "NeelNanda/pile-10k", split="train", streaming=False)
 
 token_dataset = tokenize_and_concatenate(
@@ -48,7 +46,7 @@ token_dataset = tokenize_and_concatenate(
 
 
 # %%
-# Get activations and compute feature activations
+# Get model activations and compute feature activations
 for sae in saes:
     sae.eval()  # prevents error if we're expecting a dead neuron mask for who grads
 
@@ -94,6 +92,31 @@ def pearson_correlation(tensor1, tensor2):
     
     return correlation.item()
 
+# Naive co-occurrence function (how often do binary activations coincide?)
+def co_occurrence_1(tensor1, tensor2):
+    # Ensure the tensors have the same length
+    assert tensor1.shape == tensor2.shape, "Tensors must have the same shape"
+
+    active_1 = tensor1 > 0
+    active_2 = tensor2 > 0
+
+    co = (active_1 == active_2).float().mean()
+
+    return co.item()
+
+# Co-occurrence function (how often do binary activations coincide when they're not both zero?)
+def co_occurrence_2(tensor1, tensor2):
+    # Ensure the tensors have the same length
+    assert tensor1.shape == tensor2.shape, "Tensors must have the same shape"
+
+    active_1 = tensor1 > 0
+    active_2 = tensor2 > 0
+
+    both_non_zero = (active_1 & active_2).sum()
+    one_non_zero = (active_1 | active_2).sum()
+
+    return (both_non_zero / one_non_zero).item()
+
 # Rearrange feature activations
 acts_per_feature = [einops.rearrange(layer_feature_acts, 'b p f -> f (b p)') for layer_feature_acts in feature_acts]
 
@@ -109,17 +132,33 @@ graph.add_nodes_from([(f'{layer}_{feature}', {'layer': layer}) for _, layer in l
 # and add an edge in the correlation graph if it exceeds the threshold value
 correlation_threshold = 0.2
 
+results = []
 for (index_1, layer_1), (index_2, layer_2) in tqdm(list(zip(layers, layers[1:]))):
     print(f'Computing feature correlations between layers {layer_1} and {layer_2}...')
 
     layer_1_acts_per_feature, layer_2_acts_per_feature = acts_per_feature[index_1], acts_per_feature[index_2]
     
+    layer_results = []
     for index_1, feature_1 in tqdm(enumerate(layer_1_acts_per_feature[:number_of_features]), total=number_of_features, leave=False):
+        feature_1_results = []
         for index_2, feature_2 in enumerate(layer_2_acts_per_feature[:number_of_features]):
-            correlation = pearson_correlation(feature_1, feature_2)
+            correlation = co_occurrence_2(feature_1, feature_2)
             if correlation >= correlation_threshold:
                 graph.add_edge(f'{layer_1}_{index_1}', f'{layer_2}_{index_2}', corr=correlation)
-    
+
+            feature_1_results.append(correlation)
+        
+        layer_results.append(feature_1_results)
+
+    results.append(np.array(layer_results))
+
 
 # %%
+# Draw graph showing correlations above threshold
 nx.draw(graph, pos=nx.multipartite_layout(graph, subset_key='layer'), node_size=10)
+
+
+# %%
+# Plot distribution of correlations for each pair of layers
+for layer_results in results:
+    px.histogram(layer_results.flatten()).show()
