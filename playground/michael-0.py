@@ -11,6 +11,7 @@ import einops
 from tqdm import tqdm, trange
 import plotly.express as px
 import networkx as nx
+import requests
 
 
 # %%
@@ -28,7 +29,7 @@ print(f"Device: {device}")
 model = HookedTransformer.from_pretrained("gpt2-small", device=device)
 
 # blocks = list(range(len(model.blocks)))
-blocks = [6, 7, 8, 9]
+blocks = [6, 7]
 saes = []
 for block in tqdm(blocks):
     sae, _, _ = SAE.from_pretrained(release="gpt2-small-res-jb", sae_id=f"blocks.{block}.hook_resid_pre", device=device)
@@ -121,7 +122,7 @@ def co_occurrence_2(tensor1, tensor2):
 acts_per_feature = [einops.rearrange(layer_feature_acts, 'b p f -> f (b p)') for layer_feature_acts in feature_acts]
 
 # For simplicity, only consider first X features in each layer
-number_of_features = 100
+number_of_features = 500
 
 # Init correlation graph
 layers = list(enumerate(blocks))
@@ -162,3 +163,39 @@ nx.draw(graph, pos=nx.multipartite_layout(graph, subset_key='layer'), node_size=
 # Plot distribution of correlations for each pair of layers
 for layer_results in results:
     px.histogram(layer_results.flatten()).show()
+
+
+# %%
+# Look up semantic information about high-correlation feature pairs on Neuronpedia
+def top_k_indices(arr, k):
+    # Flatten the array
+    flat = arr.flatten()
+
+    # Get the indices of the k largest elements
+    indices = np.argpartition(flat, -k)[-k:]
+
+    # Sort these indices
+    sorted_indices = indices[np.argsort(-flat[indices])]
+
+    # Convert flat indices to 2D indices
+    unraveled_indices = np.unravel_index(sorted_indices, arr.shape)
+
+    # Zip the unraveled indices to get a list of tuples
+    top_k_indices = list(zip(*unraveled_indices))
+
+    return top_k_indices
+
+
+for (index_1, layer_1), (index_2, layer_2), layer_results in list(zip(layers, layers[1:], results)):
+    top_feature_pairs = top_k_indices(np.nan_to_num(layer_results), 100)
+
+    print(f'Top feature pairs between layers {layer_1} and {layer_2}:')
+    for feature_1, feature_2 in top_feature_pairs:
+        res_1 = requests.get(f'https://www.neuronpedia.org/api/feature/gpt2-small/{index_1}-res-jb/{feature_1}')
+        res_2 = requests.get(f'https://www.neuronpedia.org/api/feature/gpt2-small/{index_2}-res-jb/{feature_2}')
+
+        explanation_1 = res_1.json()['explanations'][0]['description'] if len(res_1.json()['explanations']) > 0 else None
+        explanation_2 = res_2.json()['explanations'][0]['description'] if len(res_2.json()['explanations']) > 0 else None
+        print(f'Correlation of {layer_results[feature_1][feature_2]} found between SAE features {layer_1}_{feature_1} ({explanation_1}) and {layer_2}_{feature_2} ({explanation_2}).')
+
+    print()
