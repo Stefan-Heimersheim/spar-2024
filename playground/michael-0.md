@@ -9,6 +9,9 @@ Get feature activations in subsequent layers, compute their Pearson correlation 
 - Only use first 100 features of each layer
 - Set threshold to 0.2
 
+### Obvious weaknesses
+- Sparse activations lead to spurious correlations between features
+
 ### Results
 Out of 10,000 feature pairs per pair of layers, 5-10 have a correlation of >= 0.2. Note: The columns are the 100 features of each layer under consideration (i.e., 6, 7, 8, 9).
 ![plot](/playground/michael-0-pearson-0.png)
