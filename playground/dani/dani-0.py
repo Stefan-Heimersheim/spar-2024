@@ -36,6 +36,7 @@ for block in tqdm(blocks):
 
 
 # %%
+# This uses way too much memory, leaving it here for reference
 sae_0 = saes[0]
 sae_1 = saes[1]
 
@@ -46,3 +47,4 @@ W_dec_1_expanded = einops.repeat(sae_1.W_dec, 'd_sae d_model -> d_sae d_model d_
 
 cos_similarity = einops.einsum(W_dec_0_expanded, W_dec_1_expanded,
                                'd_sae_1 d_model_1 d_model_2, d_sae_2 d_model_1 d_model_2 -> d_sae_1 d_sae_2')
+# %%
