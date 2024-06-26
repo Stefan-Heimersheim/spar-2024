@@ -83,7 +83,9 @@ with t.no_grad():
 
 
 # %%
-t.save(results, 'dani/cosine_similarities-gpt2-small-res-jb.pt')
+t.save(results, 'dani/dani-0/cosine_similarities-gpt2-small-res-jb.pt')
+# %%
+results = t.load('dani/dani-0/cosine_similarities-gpt2-small-res-jb.pt')
 # %%
 similarity_threshold = 0.5
 is_similar = results > similarity_threshold
@@ -104,7 +106,8 @@ for (layer_1_index, layer_1_name), (layer_2_index, layer_2_name) in zip(layers[:
 nx.draw(graph, pos=nx.multipartite_layout(graph, subset_key='layer'), node_size=10)
 # %%
 import plotly_express as px
-flat_results = results.flatten().numpy()
-
-px.histogram(flat_results)
+flat_results = results[0].flatten().numpy()
+# randomly sample 1000000 elements
+flat_results_sample = np.random.choice(flat_results, 1000000)
+px.histogram(flat_results_sample)
 # %%
