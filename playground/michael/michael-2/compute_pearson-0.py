@@ -56,12 +56,13 @@ token_dataset = tokenize_and_concatenate(
     add_bos_token=prepend_bos,
 )
 
-tokens = token_dataset['tokens']
+tokens = token_dataset['tokens']  # 17.5M tokens
 
 
 # %%
 # OPTIONAL: Reduce dataset for faster experimentation
-tokens = token_dataset['tokens'][:1024]
+tokens = token_dataset['tokens'][:1024]  # 128k tokens
+# tokens = token_dataset['tokens'][:8192]  # 1M tokens
 
 
 # %%
