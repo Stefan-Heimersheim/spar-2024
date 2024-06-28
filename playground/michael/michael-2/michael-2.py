@@ -437,51 +437,66 @@ print(f'{true_result.equal(our_result)=}')
 # Object for batched pair-wise Pearson correlation computation
 class BatchedPearson:
     def __init__(self, shape):
-        """Calculates the Pearson correlation of two tensors that are provided batch-wise.
+        """Calculates the pair-wise Pearson correlation of two tensors that are provided batch-wise.
 
         Args:
             shape (Size): Shape of the result.
         """
-        self.count = torch.zeros(shape) if masked else 0
-        self.sums = torch.zeros(shape)
+        self.count = 0
 
-        self.lower_bound = lower_bound
-        self.masked = masked
+        self.sums_1 = torch.zeros(shape[0])
+        self.sums_2 = torch.zeros(shape[1])
+
+        self.sums_of_squares_1 = torch.zeros(shape[0])
+        self.sums_of_squares_2 = torch.zeros(shape[1])
+
+        self.sums_1_2 = torch.zeros(shape)
 
     def process(self, tensor_1, tensor_2):
-        active_1 = tensor_1 > self.lower_bound
-        active_2 = tensor_2 > self.lower_bound
+        self.count += tensor_1.shape[-1]
 
-        if not self.masked:
-            self.count += tensor_1.shape[-1]
+        self.sums_1 += tensor_1.sum(dim=-1)
+        self.sums_2 += tensor_2.sum(dim=-1)
 
-        for index_1, feature_1 in enumerate(active_1):
-            for index_2, feature_2 in enumerate(active_2):
-                if self.masked:
-                    self.count[index_1, index_2] += (feature_1 | feature_2).sum()
-                    self.sums[index_1, index_2] += (feature_1 & feature_2).sum()
-                else:
-                    self.sums[index_1, index_2] += (feature_1 == feature_2).sum()
+        self.sums_of_squares_1 += (tensor_1 ** 2).sum(dim=-1)
+        self.sums_of_squares_2 += (tensor_2 ** 2).sum(dim=-1)
+
+        self.sums_1_2 += einops.einsum(tensor_1, tensor_2, 'f1 t, f2 t -> f1 f2')
 
     def finalize(self):
-        return self.sums / self.count
+        means_1 = self.sums_1 / self.count
+        means_2 = self.sums_2 / self.count
+
+        # Compute the covariance and variances
+        covariances = (self.sums_1_2 / self.count) - einops.einsum(means_1, means_2, 'f1, f2 -> f1 f2')
+
+        variances_1 = (self.sums_of_squares_1 / self.count) - (means_1 ** 2)
+        variances_2 = (self.sums_of_squares_2 / self.count) - (means_2 ** 2)
+
+        stds_1 = torch.sqrt(variances_1).unsqueeze(1)
+        stds_2 = torch.sqrt(variances_2).unsqueeze(0)
+
+        # Compute the Pearson correlation coefficient
+        correlations = covariances / stds_1 / stds_2
+
+        return correlations
 
 
 # Nested for loops with own calculation
 def pearson_1(tensor_1, tensor_2):
     result = torch.empty(tensor_1.shape[0], tensor_2.shape[0])
-    for index_1, feature_1 in tensor_1:
-        for index_2, feature_2 in tensor_2:
+    for index_1, feature_1 in enumerate(tensor_1):
+        for index_2, feature_2 in enumerate(tensor_2):
             # Calculate the mean of each tensor
-            mean_1 = torch.mean(tensor_1)
-            mean_2 = torch.mean(tensor_2)
+            mean_1 = torch.mean(feature_1)
+            mean_2 = torch.mean(feature_2)
 
             # Calculate the standard deviation of each tensor
-            std_1 = torch.std(tensor_1, unbiased=False)
-            std_2 = torch.std(tensor_2, unbiased=False)
+            std_1 = torch.std(feature_1, unbiased=False)
+            std_2 = torch.std(feature_2, unbiased=False)
 
             # Calculate the covariance between the two tensors
-            covariance = torch.mean((tensor_1 - mean_1) * (tensor_2 - mean_2))
+            covariance = torch.mean((feature_1 - mean_1) * (feature_2 - mean_2))
 
             # Calculate the Pearson correlation coefficient
             result[index_1, index_2] = covariance / (std_1 * std_2)
@@ -494,28 +509,50 @@ def pearson_2(tensor_1, tensor_2):
     pearson = PearsonCorrCoef()
 
     result = torch.empty(tensor_1.shape[0], tensor_2.shape[0])
-    for index_1, feature_1 in tensor_1:
-        for index_2, feature_2 in tensor_2:
+    for index_1, feature_1 in enumerate(tensor_1):
+        for index_2, feature_2 in enumerate(tensor_2):
             result[index_1, index_2] = pearson(feature_1, feature_2)
 
     return result
+
+
+# Own calculation with broadcasting
+def pearson_3(tensor_1, tensor_2):
+    number_of_tokens = tensor_1.shape[-1]
+
+    means_1 = tensor_1.mean(dim=-1, keepdim=True)
+    means_2 = tensor_2.mean(dim=-1, keepdim=True)
+
+    stds_1 = tensor_1.std(dim=-1, unbiased=False)
+    stds_2 = tensor_2.std(dim=-1, unbiased=False)
+
+    centered_1 = tensor_1 - means_1
+    centered_2 = tensor_2 - means_2
+
+    covariances = einops.einsum(centered_1,
+                                centered_2,
+                                'f1 t, f2 t -> f1 f2'
+                                ) / number_of_tokens
+    correlations = covariances / stds_1.unsqueeze(1) / stds_2.unsqueeze(0)
+
+    return correlations
 
 
 f1 = torch.maximum(torch.rand(10, 1000) - 0.1, torch.tensor([0]))
 f2 = torch.maximum(torch.rand(20, 1000) - 0.1, torch.tensor([0]))
 
 true_result = pearson_1(f1, f2)
-# print(f'True co_occurrence: {true_result}')
+# print(f'True Pearson: {true_result}')
 
-# batch_size = 100
-# loader_1 = DataLoader(f1.movedim(-1, 0), batch_size=batch_size)
-# loader_2 = DataLoader(f2.movedim(-1, 0), batch_size=batch_size)
-# cooc = BatchedCooccurrence((f1.shape[0], f2.shape[0]), lower_bound=lower_bound, masked=masked)
+batch_size = 100
+loader_1 = DataLoader(f1.movedim(-1, 0), batch_size=batch_size)
+loader_2 = DataLoader(f2.movedim(-1, 0), batch_size=batch_size)
+aggregator = BatchedPearson((f1.shape[0], f2.shape[0]))
 
-# for input_1, input_2 in zip(loader_1, loader_2):
-#     cooc.process(input_1.movedim(0, -1), input_2.movedim(0, -1))
+for input_1, input_2 in zip(loader_1, loader_2):
+    aggregator.process(input_1.movedim(0, -1), input_2.movedim(0, -1))
 
-our_result = pearson_2(f1, f2)
-# print(f'Calculated co_occurrence: {our_result}')
+our_result = aggregator.finalize()
+print(f'Calculated Pearson: {our_result}')
 
-print(f'{true_result.equal(our_result)=}')
+print(f'{torch.allclose(true_result, our_result, atol=1e-6)=}')

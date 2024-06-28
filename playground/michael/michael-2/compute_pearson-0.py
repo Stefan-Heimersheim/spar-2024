@@ -68,40 +68,50 @@ tokens = token_dataset['tokens'][:1024]  # 128k tokens
 # %%
 # Define object for batched co-occurrence computation
 class BatchedPearson:
-    def __init__(self, shape, lower_bound=0.0, masked=True, device=device):
-        """Calculates the pair-wise co-occurrence of two 2d tensors that are provided
-        batch-wise.
+    def __init__(self, shape):
+        """Calculates the pair-wise Pearson correlation of two tensors that are provided batch-wise.
 
         Args:
             shape (Size): Shape of the result.
-            lower_bound (float, optional): Lower bound for activation. Defaults to 0.0.
-            masked (bool, optional): If true, only consider elements where at least one
-            of the two tensors is active. Defaults to True.
         """
-        self.count = torch.zeros(shape).to(device) if masked else 0
-        self.sums = torch.zeros(shape).to(device)
+        self.count = 0
 
-        self.lower_bound = lower_bound
-        self.masked = masked
+        self.sums_1 = torch.zeros(shape[0])
+        self.sums_2 = torch.zeros(shape[1])
+
+        self.sums_of_squares_1 = torch.zeros(shape[0])
+        self.sums_of_squares_2 = torch.zeros(shape[1])
+
+        self.sums_1_2 = torch.zeros(shape)
 
     def process(self, tensor_1, tensor_2):
-        active_1 = tensor_1 > self.lower_bound
-        active_2 = tensor_2 > self.lower_bound
+        self.count += tensor_1.shape[-1]
 
-        if not self.masked:
-            self.count += tensor_1.shape[-1]
+        self.sums_1 += tensor_1.sum(dim=-1)
+        self.sums_2 += tensor_2.sum(dim=-1)
 
-        for index_1, feature_1 in enumerate(active_1):
-            print('.', end='')
-            for index_2, feature_2 in enumerate(active_2):
-                if self.masked:
-                    self.count[index_1, index_2] += (feature_1 | feature_2).sum()
-                    self.sums[index_1, index_2] += (feature_1 & feature_2).sum()
-                else:
-                    self.sums[index_1, index_2] += (feature_1 == feature_2).sum()
+        self.sums_of_squares_1 += (tensor_1 ** 2).sum(dim=-1)
+        self.sums_of_squares_2 += (tensor_2 ** 2).sum(dim=-1)
+
+        self.sums_1_2 += einops.einsum(tensor_1, tensor_2, 'f1 t, f2 t -> f1 f2')
 
     def finalize(self):
-        return (self.sums / self.count)
+        means_1 = self.sums_1 / self.count
+        means_2 = self.sums_2 / self.count
+
+        # Compute the covariance and variances
+        covariances = (self.sums_1_2 / self.count) - einops.einsum(means_1, means_2, 'f1, f2 -> f1 f2')
+
+        variances_1 = (self.sums_of_squares_1 / self.count) - (means_1 ** 2)
+        variances_2 = (self.sums_of_squares_2 / self.count) - (means_2 ** 2)
+
+        stds_1 = torch.sqrt(variances_1).unsqueeze(1)
+        stds_2 = torch.sqrt(variances_2).unsqueeze(0)
+
+        # Compute the Pearson correlation coefficient
+        correlations = covariances / stds_1 / stds_2
+
+        return correlations
 
 
 # %%
@@ -128,7 +138,7 @@ layer_1, number_of_features_1 = 6, 10
 layer_2, number_of_features_2 = 7, 24576
 
 
-aggregator = BatchedCooccurrence((number_of_features_1, number_of_features_2))
+aggregator = BatchedPearson((number_of_features_1, number_of_features_2))
 with torch.no_grad():
     for batch_tokens in tqdm(data_loader):
         model.run_with_hooks(batch_tokens)
@@ -139,16 +149,16 @@ with torch.no_grad():
             sae_activations[layer_2, :number_of_features_2]
         )
 
-    cooccurrences = aggregator.finalize()
+    pearson_correlations = aggregator.finalize()
 
 
 # %%
-px.histogram(cooccurrences[0].cpu())
+px.histogram(pearson_correlations[0][pearson_correlations[0] > 0].cpu())
 
 
 # %%
-(cooccurrences > 0.01).count_nonzero(dim=1)
+(pearson_correlations > 0.5).count_nonzero(dim=1)
 
 
 # %%
-cooccurrences[0][cooccurrences[0] > 0.01]
+pearson_correlations[0][pearson_correlations[0] > 0.01]
