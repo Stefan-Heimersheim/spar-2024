@@ -139,27 +139,41 @@ def retrieval_hook(activations, hook):
 model.add_hook(lambda name: name.endswith('.hook_resid_pre'), retrieval_hook)
 
 
-# Define layers and features for co-occurrence calculation
-layer_1, number_of_features_1 = 6, 24576
-layer_2, number_of_features_2 = 7, 24576
+# Define aggregator configurations (layers and features) for co-occurrence calculation
+class AggregatorConfig:
+    def __init__(self, layer_1, features_1, layer_2, features_2) -> None:
+        self.layer_1, self.features_1 = layer_1, features_1
+        self.layer_2, self.features_2 = layer_2, features_2
 
 
-aggregator = BatchedPearson(number_of_features_1, number_of_features_2)
+cfgs = [
+    AggregatorConfig(8, [0, 1, 2, 3, 4, 5, 6, 7, 8, 14292], 9, [0, 1, 2, 3, 4, 5, 6, 7, 8, 4813]),
+    AggregatorConfig(9, [0, 1, 2, 3, 4, 5, 6, 7, 8, 4813], 10, [0, 1, 2, 3, 4, 5, 6, 7, 8, 23138]),
+    AggregatorConfig(10, [0, 1, 2, 3, 4, 5, 6, 7, 8, 23138], 11, [0, 1, 2, 3, 4, 5, 6, 7, 8, 701])
+]
+
+aggregators = [BatchedPearson((len(cfg.features_1), len(cfg.features_2))) for cfg in cfgs]
 with torch.no_grad():
     for batch_tokens in tqdm(data_loader):
         model.run_with_hooks(batch_tokens)
 
         # Now we can use sae_activations
-        aggregator.process(
-            sae_activations[layer_1, :number_of_features_1],
-            sae_activations[layer_2, :number_of_features_2]
-        )
+        for aggregator, cfg in zip(aggregators, cfgs):
+            aggregator.process(
+                sae_activations[cfg.layer_1, cfg.features_1],
+                sae_activations[cfg.layer_2, cfg.features_2]
+            )
 
-    pearson_correlations = aggregator.finalize()
-
-# `pearson_correlations` is now a (number_of_features_1, number_of_features_2) tensor
-# that stores the correlation values for each pair of features
+    pearson_correlations = [aggregator.finalize() for aggregator in aggregators]
 
 
 # %%
 px.histogram(pearson_correlations[0][pearson_correlations[0] > 0].cpu())
+
+
+# %%
+(pearson_correlations > 0.1).count_nonzero(dim=1)
+
+
+# %%
+px.imshow(pearson_correlations[2])
