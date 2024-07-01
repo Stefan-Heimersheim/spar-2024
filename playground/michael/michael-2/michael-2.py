@@ -14,6 +14,7 @@ import networkx as nx
 import requests
 from torch.utils.data import DataLoader
 from torchmetrics.regression import PearsonCorrCoef
+from torchmetrics.clustering import MutualInfoScore
 
 
 # %%
@@ -556,3 +557,148 @@ our_result = aggregator.finalize()
 print(f'Calculated Pearson: {our_result}')
 
 print(f'{torch.allclose(true_result, our_result, atol=1e-6)=}')
+
+
+# %%
+# Object for batched pair-wise mutual information computation
+class BatchedMutualInformation:
+    def __init__(self, shape, lower_bound=0.0):
+        """Calculates the pair-wise Pearson correlation of two tensors that are provided batch-wise.
+
+        Args:
+            shape (Size): Shape of the result.
+        """
+        self.count = 0
+
+        self.count_0_0 = torch.zeros(shape)
+        self.count_0_1 = torch.zeros(shape)
+        self.count_1_0 = torch.zeros(shape)
+        self.count_1_1 = torch.zeros(shape)
+
+        self.lower_bound = lower_bound
+
+    def process(self, tensor_1, tensor_2):
+        active_1 = (tensor_1 > self.lower_bound).unsqueeze(dim=1)
+        active_2 = (tensor_2 > self.lower_bound).unsqueeze(dim=0)
+
+        self.count += tensor_1.shape[-1]
+
+        self.count_0_0 += (~active_1 & ~active_2).sum(dim=-1)
+        self.count_0_1 += (~active_1 & active_2).sum(dim=-1)
+        self.count_1_0 += (active_1 & ~active_2).sum(dim=-1)
+        self.count_1_1 += (active_1 & active_2).sum(dim=-1)
+
+    def finalize(self):
+        # Compute joint probabilities
+        p00 = self.count_0_0 / self.count
+        p01 = self.count_0_1 / self.count
+        p10 = self.count_1_0 / self.count
+        p11 = self.count_1_1 / self.count
+
+        # Compute marginal probabilities
+        px0 = p00 + p01
+        px1 = p10 + p11
+        py0 = p00 + p10
+        py1 = p01 + p11
+
+        # Calculate mutual information
+        mi = torch.zeros_like(p00)
+        for pxy, px, py in zip([p00, p01, p10, p11], [px0, px0, px1, px1], [py0, py1, py0, py1]):
+            mi += (pxy * torch.log(pxy / (px * py))).nan_to_num()
+
+        return mi
+
+
+# Nested for loops with own calculation
+def mutual_1(tensor_1, tensor_2, lower_bound=0.0):
+    active_1 = tensor_1 > lower_bound
+    active_2 = tensor_2 > lower_bound
+
+    n_tokens = active_1.shape[-1]
+
+    result = torch.empty(active_1.shape[0], active_2.shape[0])
+    for index_1, feature_1 in enumerate(active_1):
+        for index_2, feature_2 in enumerate(active_2):
+            # Compute the joint probability table
+            p00 = torch.sum((feature_1 == 0) & (feature_2 == 0)) / n_tokens
+            p01 = torch.sum((feature_1 == 0) & (feature_2 == 1)) / n_tokens
+            p10 = torch.sum((feature_1 == 1) & (feature_2 == 0)) / n_tokens
+            p11 = torch.sum((feature_1 == 1) & (feature_2 == 1)) / n_tokens
+
+            # Compute marginal probabilities
+            px0 = p00 + p01
+            px1 = p10 + p11
+            py0 = p00 + p10
+            py1 = p01 + p11
+
+            # Calculate mutual information
+            mi = 0.0
+            for pxy, px, py in zip([p00, p01, p10, p11], [px0, px0, px1, px1], [py0, py1, py0, py1]):
+                if pxy > 0:
+                    mi += pxy * torch.log(pxy / (px * py))
+
+            result[index_1, index_2] = mi
+
+    return result
+
+
+# Nested for loops with torchmetrics
+def mutual_2(tensor_1, tensor_2, lower_bound=0.0):
+    active_1 = tensor_1 > lower_bound
+    active_2 = tensor_2 > lower_bound
+
+    mutual = MutualInfoScore()
+
+    result = torch.empty(active_1.shape[0], active_2.shape[0])
+    for index_1, feature_1 in enumerate(active_1):
+        for index_2, feature_2 in enumerate(active_2):
+            result[index_1, index_2] = mutual(feature_1, feature_2)
+
+    return result
+
+
+# Own calculation with broadcasting
+def mutual_3(tensor_1, tensor_2, lower_bound=0.0):
+    active_1 = (tensor_1 > lower_bound).unsqueeze(dim=1)
+    active_2 = (tensor_2 > lower_bound).unsqueeze(dim=0)
+
+    n_tokens = active_1.shape[-1]
+
+    # Compute joint probabilities
+    p00 = (~active_1 & ~active_2).sum(dim=-1) / n_tokens
+    p01 = (~active_1 & active_2).sum(dim=-1) / n_tokens
+    p10 = (active_1 & ~active_2).sum(dim=-1) / n_tokens
+    p11 = (active_1 & active_2).sum(dim=-1) / n_tokens
+
+    # Compute marginal probabilities
+    px0 = p00 + p01
+    px1 = p10 + p11
+    py0 = p00 + p10
+    py1 = p01 + p11
+
+    # Calculate mutual information
+    mi = torch.zeros(tensor_1.shape[0], tensor_2.shape[0])
+    for pxy, px, py in zip([p00, p01, p10, p11], [px0, px0, px1, px1], [py0, py1, py0, py1]):
+        mi += (pxy * torch.log(pxy / (px * py))).nan_to_num()
+
+    return mi
+
+
+f1 = torch.maximum(torch.rand(10, 1000) - 0.1, torch.tensor([0]))
+f2 = torch.maximum(torch.rand(20, 1000) - 0.1, torch.tensor([0]))
+
+true_result = mutual_1(f1, f2)
+print(f'True Pearson: {true_result}')
+
+batch_size = 100
+loader_1 = DataLoader(f1.movedim(-1, 0), batch_size=batch_size)
+loader_2 = DataLoader(f2.movedim(-1, 0), batch_size=batch_size)
+aggregator = BatchedMutualInformation((f1.shape[0], f2.shape[0]))
+
+for input_1, input_2 in zip(loader_1, loader_2):
+    aggregator.process(input_1.movedim(0, -1), input_2.movedim(0, -1))
+
+our_result = aggregator.finalize()
+print(f'Calculated Pearson: {our_result}')
+
+print(f'{torch.allclose(true_result, our_result, atol=2e-6)=}')
