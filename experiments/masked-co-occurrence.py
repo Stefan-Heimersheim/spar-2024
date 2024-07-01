@@ -63,7 +63,7 @@ tokens = token_dataset['tokens'][:1024]
 # %%
 # Define object for batched co-occurrence computation
 class BatchedCooccurrence:
-    def __init__(self, shape, lower_bound=0.0, masked=True, device=device):
+    def __init__(self, shape, lower_bound=0.0, masked=True, device=device, epsilon=1e-6):
         """Calculates the pair-wise co-occurrence of two 2d tensors that are provided
         batch-wise.
 
@@ -73,7 +73,7 @@ class BatchedCooccurrence:
             masked (bool, optional): If true, only consider elements where at least one
             of the two tensors is active. Defaults to True.
         """
-        self.count = t.zeros(shape).to(device) if masked else 0
+        self.count = epsilon * t.ones(shape).to(device) if masked else 0
         self.sums = t.zeros(shape).to(device)
 
         self.lower_bound = lower_bound
@@ -132,7 +132,6 @@ def get_layer_cooccurences(layer, batch_size=32, feat_batch_size=64, data_loader
     model.add_hook(f'blocks.{layer}.hook_resid_pre', partial(retrieval_hook, idx=0))
     model.add_hook(f'blocks.{layer+1}.hook_resid_pre', partial(retrieval_hook, idx=1))
 
-    all_cooccurrences = t.empty(d_sae, d_sae).cpu()
     n_feats_1 = feat_batch_size
     n_feats_2 = d_sae
     n_feat_batches = d_sae // feat_batch_size
@@ -144,7 +143,6 @@ def get_layer_cooccurences(layer, batch_size=32, feat_batch_size=64, data_loader
         with t.no_grad():
             for batch_tokens in tqdm(data_loader):
                 model.run_with_hooks(batch_tokens)
-
                 # Now we can use sae_activations
                 aggregator.process(
                     sae_activations[0, feat_start:feat_end],
@@ -159,6 +157,7 @@ def get_layer_cooccurences(layer, batch_size=32, feat_batch_size=64, data_loader
 
 
 # %%
+all_cooccurrences = t.empty(d_sae, d_sae).cpu()
 layer_0_cooccurrences = get_layer_cooccurences(layer=0, batch_size=32, feat_batch_size=64, data_loader=data_loader)
 np.savez_compressed('layer_0_cooccurrences.npy', layer_0_cooccurrences.cpu().numpy())
 # %%
@@ -185,4 +184,32 @@ cooccurrences[cooccurrences > 0.1]
 px.histogram(aggregator.sums.flatten().cpu())
 
 
+# %%
+def test_batched_cooccurrence():
+    # Define small tensors for testing
+    tensor_1 = t.tensor([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 0]], dtype=t.float32).to(device)
+    tensor_2 = t.tensor([[1, 1, 0, 0], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 0]], dtype=t.float32).to(device)
+
+    # Initialize BatchedCooccurrence
+    shape = (tensor_1.shape[0], tensor_2.shape[0])
+    aggregator = BatchedCooccurrence(shape=shape, masked=True)
+
+    # Process tensors
+    aggregator.process(tensor_1, tensor_2)
+    cooccurrences = aggregator.finalize()
+
+    # Print results
+    print("Co-occurrences:")
+    print(cooccurrences)
+
+    # Check for NaNs
+
+    # Print count and sums for debug
+    print("Counts:")
+    print(aggregator.count)
+    print("Sums:")
+    print(aggregator.sums)
+
+# Run the test
+test_batched_cooccurrence()
 # %%
