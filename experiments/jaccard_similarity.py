@@ -111,7 +111,6 @@ data_loader = DataLoader(tokens, batch_size=batch_size, shuffle=False)
 # %%
 def get_layer_jaccard(layer, layer_similarities, batch_size=32, feat_batch_size=64, data_loader=data_loader):
     print(f'Computing Jaccard similarity for layer {layer}')
-    return
     model = HookedTransformer.from_pretrained("gpt2-small", device=device)
     saes = []
     for i in range(2):
