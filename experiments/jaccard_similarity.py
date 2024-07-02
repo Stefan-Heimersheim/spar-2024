@@ -1,6 +1,8 @@
 # %%
-# Imports
+import argparse
+from datetime import datetime
 from functools import partial
+import numpy as np
 import torch as t
 from datasets import load_dataset
 from transformer_lens import HookedTransformer
@@ -10,7 +12,7 @@ import einops
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 import plotly.express as px
-import numpy as np
+from src.similarity_helpers import save_compressed
 
 
 # %%
@@ -27,6 +29,7 @@ print(f"Device: {device}")
 # Load Model, SAEs and data
 model = HookedTransformer.from_pretrained("gpt2-small", device=device)
 
+print(f'Loading SAEs')
 saes = []
 for layer in tqdm(list(range(model.cfg.n_layers))):
     sae, _, _ = SAE.from_pretrained(
@@ -61,10 +64,10 @@ tokens = token_dataset['tokens'][:1024]
 
 
 # %%
-# Define object for batched co-occurrence computation
-class BatchedCooccurrence:
+# Define object for batched Jaccard similarity computation
+class BatchedJaccard:
     def __init__(self, shape, lower_bound=0.0, masked=True, device=device, epsilon=1e-6):
-        """Calculates the pair-wise co-occurrence of two 2d tensors that are provided
+        """Calculates the pair-wise Jaccard similarity of two 2d tensors that are provided
         batch-wise.
 
         Args:
@@ -106,7 +109,9 @@ batch_size = 32  # Batch size of 32 seems to be optimal for model run-time
 data_loader = DataLoader(tokens, batch_size=batch_size, shuffle=False)
 
 # %%
-def get_layer_cooccurences(layer, batch_size=32, feat_batch_size=64, data_loader=data_loader):
+def get_layer_jaccard(layer, layer_similarities, batch_size=32, feat_batch_size=64, data_loader=data_loader):
+    print(f'Computing Jaccard similarity for layer {layer}')
+    return
     model = HookedTransformer.from_pretrained("gpt2-small", device=device)
     saes = []
     for i in range(2):
@@ -134,7 +139,7 @@ def get_layer_cooccurences(layer, batch_size=32, feat_batch_size=64, data_loader
     n_feats_1 = feat_batch_size
     n_feats_2 = d_sae
     n_feat_batches = d_sae // feat_batch_size
-    aggregators = {i: BatchedCooccurrence((n_feats_1, n_feats_2)) for i in range(n_feat_batches)}
+    aggregators = {i: BatchedJaccard((n_feats_1, n_feats_2)) for i in range(n_feat_batches)}
     with t.no_grad():
         for batch_tokens in tqdm(data_loader):
             model.run_with_hooks(batch_tokens)
@@ -148,69 +153,36 @@ def get_layer_cooccurences(layer, batch_size=32, feat_batch_size=64, data_loader
                 )
         for i_feat in range(n_feat_batches):
             aggregator = aggregators[i_feat]
-            cooccurrences = aggregator.finalize()
-            all_cooccurrences[feat_start:feat_end, :] = cooccurrences
-    return all_cooccurrences
-
-
-
+            similarity = aggregator.finalize()
+            layer_similarities[feat_start:feat_end, :] = similarity
 
 # %%
-all_cooccurrences = t.empty(d_sae, d_sae).cpu()
-layer_0_cooccurrences = get_layer_cooccurences(layer=0, batch_size=32, feat_batch_size=64, data_loader=data_loader)
+# layer_similarities = t.empty(d_sae, d_sae).cpu()
+# layer_0_similarities = get_layer_jaccard(layer=0, layer_similarities=layer_similarities, batch_size=32, feat_batch_size=64, data_loader=data_loader)
 # %%
-np.savez_compressed('layer_0_cooccurrences.npy', layer_0_cooccurrences.cpu().numpy())
-# %%
-def get_all_layer_cooccurrences(layers, batch_size=32, feat_batch_size=64, data_loader=data_loader):
+def get_all_layer_similarities(layers, filename=None, batch_size=32, feat_batch_size=64, data_loader=data_loader):
     for layer in layers:
-        layer_cooccurrences = get_layer_cooccurences(layer=layer, batch_size=batch_size, feat_batch_size=feat_batch_size, data_loader=data_loader)
-        t.save()
-
-
-# %%
-# %%
-px.histogram(cooccurrences[0].cpu())
-
+        layer_similarities = t.empty(d_sae, d_sae).cpu()
+        get_layer_jaccard(layer=layer, layer_similarities=layer_similarities, batch_size=batch_size, feat_batch_size=feat_batch_size, data_loader=data_loader)
+        if filename is not None:
+            save_filename = f'{filename}_layer_{layer}.npz'
+            print(f'Saving Jaccard similarity for layer {layer} to {save_filename}')
+            save_compressed(layer_similarities.detach().cpu().numpy(), save_filename)
 
 # %%
-(cooccurrences > 0.5).count_nonzero(dim=1)
-
-
-# %%
-cooccurrences[cooccurrences > 0.1]
-
-
-# %%
-px.histogram(aggregator.sums.flatten().cpu())
-
-
-# %%
-def test_batched_cooccurrence():
-    # Define small tensors for testing
-    tensor_1 = t.tensor([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 0]], dtype=t.float32).to(device)
-    tensor_2 = t.tensor([[1, 1, 0, 0], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 0]], dtype=t.float32).to(device)
-
-    # Initialize BatchedCooccurrence
-    shape = (tensor_1.shape[0], tensor_2.shape[0])
-    aggregator = BatchedCooccurrence(shape=shape, masked=True)
-
-    # Process tensors
-    aggregator.process(tensor_1, tensor_2)
-    cooccurrences = aggregator.finalize()
-
-    # Print results
-    print("Co-occurrences:")
-    print(cooccurrences)
-
-    # Check for NaNs
-
-    # Print count and sums for debug
-    print("Counts:")
-    print(aggregator.count)
-    print("Sums:")
-    print(aggregator.sums)
-
-# Run the test
-test_batched_cooccurrence()
-# %%
-# open cooccurrences npz file
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-a', action='store_true', help='All layers')
+    parser.add_argument('-l', type=int, help='Specific layer', default=None)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    parser.add_argument('-f', type=str, help='Filename', default=f'jaccard_similarity_{timestamp}')
+    args = parser.parse_args()
+    if args.a:
+        print(f'Computing Jaccard similarity for all layers')
+        get_all_layer_similarities(layers=list(range(12)), filename=args.f, batch_size=32, feat_batch_size=64, data_loader=data_loader)
+    elif args.l is not None:
+        layer_similarities = t.empty(d_sae, d_sae).cpu()
+        get_layer_jaccard(layer=args.l, layer_similarities=layer_similarities, batch_size=32, feat_batch_size=64, data_loader=data_loader)
+        filename = f'{args.f}_layer_{args.l}.npz'
+        print(f'Saving Jaccard similarity for layer {args.l} to {filename}')
+        save_compressed(layer_similarities.detach().cpu().numpy(), filename)
