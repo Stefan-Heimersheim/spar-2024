@@ -161,7 +161,7 @@ def get_layer_jaccard(layer, layer_similarities, batch_size=32, feat_batch_size=
 # layer_0_similarities = get_layer_jaccard(layer=0, layer_similarities=layer_similarities, batch_size=32, feat_batch_size=64, data_loader=data_loader)
 # %%
 def get_all_layer_similarities(layers, filename=None, batch_size=32, feat_batch_size=64, data_loader=data_loader):
-    for layer in layers:
+    for layer in tqdm(layers):
         layer_similarities = t.empty(d_sae, d_sae).cpu()
         get_layer_jaccard(layer=layer, layer_similarities=layer_similarities, batch_size=batch_size, feat_batch_size=feat_batch_size, data_loader=data_loader)
         if filename is not None:
