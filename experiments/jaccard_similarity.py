@@ -106,7 +106,6 @@ batch_size = 32  # Batch size of 32 seems to be optimal for model run-time
 data_loader = DataLoader(tokens, batch_size=batch_size, shuffle=False)
 
 # %%
-
 def get_layer_cooccurences(layer, batch_size=32, feat_batch_size=64, data_loader=data_loader):
     model = HookedTransformer.from_pretrained("gpt2-small", device=device)
     saes = []
@@ -135,22 +134,22 @@ def get_layer_cooccurences(layer, batch_size=32, feat_batch_size=64, data_loader
     n_feats_1 = feat_batch_size
     n_feats_2 = d_sae
     n_feat_batches = d_sae // feat_batch_size
-    for i_feat in tqdm(range(n_feat_batches)):
-        feat_start = i_feat * n_feats_1
-        feat_end = (i_feat + 1) * n_feats_1
-        print(f'feat_start: {feat_start}, feat_end: {feat_end}')
-        aggregator = BatchedCooccurrence((n_feats_1, n_feats_2))
-        with t.no_grad():
-            for batch_tokens in tqdm(data_loader):
-                model.run_with_hooks(batch_tokens)
-                # Now we can use sae_activations
+    aggregators = {i: BatchedCooccurrence((n_feats_1, n_feats_2)) for i in range(n_feat_batches)}
+    with t.no_grad():
+        for batch_tokens in tqdm(data_loader):
+            model.run_with_hooks(batch_tokens)
+            for i_feat in tqdm(range(n_feat_batches)):
+                feat_start = i_feat * n_feats_1
+                feat_end = (i_feat + 1) * n_feats_1
+                aggregator = aggregators[i_feat]
                 aggregator.process(
                     sae_activations[0, feat_start:feat_end],
                     sae_activations[1, :n_feats_2]
                 )
-
+        for i_feat in range(n_feat_batches):
+            aggregator = aggregators[i_feat]
             cooccurrences = aggregator.finalize()
-        all_cooccurrences[feat_start:feat_end, :] = cooccurrences
+            all_cooccurrences[feat_start:feat_end, :] = cooccurrences
     return all_cooccurrences
 
 
@@ -159,6 +158,7 @@ def get_layer_cooccurences(layer, batch_size=32, feat_batch_size=64, data_loader
 # %%
 all_cooccurrences = t.empty(d_sae, d_sae).cpu()
 layer_0_cooccurrences = get_layer_cooccurences(layer=0, batch_size=32, feat_batch_size=64, data_loader=data_loader)
+# %%
 np.savez_compressed('layer_0_cooccurrences.npy', layer_0_cooccurrences.cpu().numpy())
 # %%
 def get_all_layer_cooccurrences(layers, batch_size=32, feat_batch_size=64, data_loader=data_loader):
@@ -213,3 +213,4 @@ def test_batched_cooccurrence():
 # Run the test
 test_batched_cooccurrence()
 # %%
+# open cooccurrences npz file
