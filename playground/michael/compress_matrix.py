@@ -21,9 +21,11 @@ def load_correlation_data(files: List[str]):
 
         return np.stack(data)
 
-def clamp_low_values(tensor, threshold):
-    tensor[tensor < threshold] = 0
+def clamp_low_values(arr, threshold):
+    arr[np.abs(arr) < threshold] = 0
+    return arr
 
 
-def save_compressed(tensor, filename):
-    np.savez_compressed(filename, tensor.detach().cpu().numpy())
+def save_compressed(arr, filename):
+    np.savez_compressed(filename, arr)
+# %%
