@@ -175,13 +175,14 @@ if __name__ == '__main__':
     parser.add_argument('-l', type=int, help='Specific layer', default=None)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     parser.add_argument('-f', type=str, help='Filename', default=f'jaccard_similarity_{timestamp}')
+    parser.add_argument('-fb', type=int, help='Feature batch size', default=64)
     args = parser.parse_args()
     if args.a:
         print(f'Computing Jaccard similarity for all layers')
-        get_all_layer_similarities(layers=list(range(12)), filename=args.f, batch_size=32, feat_batch_size=64, data_loader=data_loader)
+        get_all_layer_similarities(layers=list(range(12)), filename=args.f, batch_size=32, feat_batch_size=args.fb, data_loader=data_loader)
     elif args.l is not None:
         layer_similarities = t.empty(d_sae, d_sae).cpu()
-        get_layer_jaccard(layer=args.l, layer_similarities=layer_similarities, batch_size=32, feat_batch_size=64, data_loader=data_loader)
+        get_layer_jaccard(layer=args.l, layer_similarities=layer_similarities, batch_size=32, feat_batch_size=args.fb, data_loader=data_loader)
         filename = f'{args.f}_layer_{args.l}.npz'
         print(f'Saving Jaccard similarity for layer {args.l} to {filename}')
         save_compressed(layer_similarities.detach().cpu().numpy(), filename)
