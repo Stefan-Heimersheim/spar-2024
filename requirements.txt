@@ -7,3 +7,4 @@ datasets
 einops
 tqdm
 jupyter
+tsalib
