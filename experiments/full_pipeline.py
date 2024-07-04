@@ -22,6 +22,13 @@ interaction_measures = ['cosine', 'pearson', 'jaccard', 'necessity', 'sufficienc
 
 # %%
 # Step 1: Create feature interaction matrices for all considered measures.
+#
+# Details:
+# - Use 1M tokens (256 batches * 32 rows * 128 tokens) as the dataset
+# - Cut off low activations for binary measures
+# - Replace low interaction values with zero to save space
+# - Save the interaction matrices to individual files (one per pair of layers)
+#   using np.savez_compressed()
 
 
 # %%
