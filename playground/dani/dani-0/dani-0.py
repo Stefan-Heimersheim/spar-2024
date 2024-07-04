@@ -87,6 +87,16 @@ with t.no_grad():
 t.save(results, 'dani/dani-0/cosine_similarities-gpt2-small-res-jb.pt')
 # %%
 results = t.load('dani/dani-0/cosine_similarities-gpt2-small-res-jb.pt')
+# %% save compressed in numpy format
+np.savez_compressed('dani/dani-0/cosine_similarities-gpt2-small-res-jb.npz', results.cpu().numpy())
+# %%
+results = np.load('dani/dani-0/cosine_similarities-gpt2-small-res-jb.npz')['arr_0']
+# %%
+import michael.compress_matrix as compress_matrix
+# %%
+compress_matrix.clamp_low_values(results, threshold=0.2)
+# %%
+compress_matrix.save_compressed(results, 'dani/dani-0/cosine_similarities-gpt2-small-res-jb-clamped-0_2.npz')
 # %%
 similarity_threshold = 0.5
 is_similar = results > similarity_threshold
@@ -214,4 +224,8 @@ with t.no_grad():
                 layer_co_occurrences[feature_1_index, feature_2_index] = co_occurrence_2(feature_1, feature_2)
         correlation_results[layer_1_index, :, :] = layer_correlations.cpu()
         co_occurrence_results[layer_1_index, :, :] = layer_co_occurrences.cpu()
+# %%
+# Clamp values below threshold to 0
+correlation_results = correlation_results.clamp(min=similarity_threshold)
+
 # %%
