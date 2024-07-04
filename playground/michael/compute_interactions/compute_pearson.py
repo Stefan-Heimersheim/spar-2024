@@ -97,7 +97,7 @@ output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_correlat
 
 d_sae = saes[0].cfg.d_sae
 
-for layer in [10]: # range(model.cfg.n_layers - 1):
+for layer in range(model.cfg.n_layers - 1):
     aggregator = PearsonAggregator(layer, d_sae, d_sae)
 
     pearson_correlations = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
