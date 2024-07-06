@@ -173,13 +173,17 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-a', action='store_true', help='All layers')
     parser.add_argument('-l', type=int, help='Specific layer', default=None)
+    parser.add_argument('-s', type=int, help='Start layer', default=0)
+    parser.add_argument('-e', type=int, help='End layer', default=11)
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     parser.add_argument('-f', type=str, help='Filename', default=f'jaccard_similarity_{timestamp}')
     parser.add_argument('-fb', type=int, help='Feature batch size', default=64)
     args = parser.parse_args()
     if args.a:
         print(f'Computing Jaccard similarity for all layers')
-        get_all_layer_similarities(layers=list(range(12)), filename=args.f, batch_size=32, feat_batch_size=args.fb, data_loader=data_loader)
+        start_layer = args.s if args.s is not None else 0
+        end_layer = args.e if args.e is not None else 11    
+        get_all_layer_similarities(layers=list(range(start_layer, end_layer)), filename=args.f, batch_size=32, feat_batch_size=args.fb, data_loader=data_loader)
     elif args.l is not None:
         layer_similarities = t.empty(d_sae, d_sae).cpu()
         get_layer_jaccard(layer=args.l, layer_similarities=layer_similarities, batch_size=32, feat_batch_size=args.fb, data_loader=data_loader)
