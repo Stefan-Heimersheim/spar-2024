@@ -1,0 +1,4 @@
+igraph==0.11.5
+leidenalg==0.10.2
+numpy==1.26.4
+cairocffi==1.7.1
