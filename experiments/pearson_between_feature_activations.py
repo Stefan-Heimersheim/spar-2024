@@ -62,8 +62,8 @@ tokens = token_dataset["tokens"]  # 17.5M tokens
 # %%
 # OPTIONAL: Reduce dataset for faster experimentation
 # tokens = token_dataset['tokens'][:32]  # 4k tokens
-# tokens = token_dataset['tokens'][:1024]  # 128k tokens
-tokens = token_dataset["tokens"][:8192]  # 1M tokens
+tokens = token_dataset['tokens'][:1024]  # 128k tokens
+# tokens = token_dataset["tokens"][:8192]  # 1M tokens
 
 
 # %%
@@ -151,6 +151,8 @@ for layer_1, layer_2 in zip(layers, layers[1:]):
         pearson_correlations = aggregator.finalize()  # (d_sae, d_sae)
 
     with open(
-        f"res_jb_sae_feature_correlation_pearson_{layer_1}_{layer_2}.pt", "wb"
+        f"../data/res_jb_sae_feature_correlation_pearson_{layer_1}_{layer_2}.pt", "wb"
     ) as f:
         torch.save(pearson_correlations, f)
+
+# %%
