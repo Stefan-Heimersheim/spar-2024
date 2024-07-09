@@ -4,10 +4,10 @@
 # of the _SAE feature interaction graph_ SPAR project.
 #
 # The main steps are:
-# 1. Create feature interaction matrices for all considered measures.
-# 2. Build a feature interaction graph from each matrix.
+# 1. Create feature similarity matrices for all considered measures.
+# 2. Build a feature similarity graph from each matrix.
 # 3. Identify feature pairs for causal analysis.
-# 4. Build a causal interaction graph via activation patching.
+# 4. Build a causal similarity graph via activation patching.
 # 5. Analyze the graph's structure.
 
 
@@ -17,22 +17,22 @@
 
 # %%
 # Configuration
-interaction_measures = ['cosine', 'pearson', 'jaccard', 'necessity', 'sufficiency']
+similarity_measures = ['cosine', 'pearson', 'jaccard', 'necessity', 'sufficiency']
 
 
 # %%
-# Step 1: Create feature interaction matrices for all considered measures.
+# Step 1: Create feature similarity matrices for all considered measures.
 #
 # Details:
 # - Use 1M tokens (256 batches * 32 rows * 128 tokens) as the dataset
 # - Cut off low activations for binary measures
-# - Replace low interaction values with zero to save space
-# - Save the interaction matrices to individual files (one per pair of layers)
+# - Replace low similarity values with zero to save space
+# - Save the similarity matrices to individual files (one per pair of layers)
 #   using np.savez_compressed()
 
 
 # %%
-# Step 2: Build a feature interaction graph from each matrix.
+# Step 2: Build a feature similarity graph from each matrix.
 
 
 # %%
