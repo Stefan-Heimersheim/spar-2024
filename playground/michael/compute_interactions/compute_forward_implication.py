@@ -66,7 +66,7 @@ if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
 activity_lower_bound = 0.0
-interaction_threshold = 0.1
+similarity_threshold = 0.1
 output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_correlation_forward_implication_{layer}_{layer+1}_1M_{threshold}.npz'
 
 d_sae = saes[0].cfg.d_sae
@@ -76,7 +76,7 @@ for layer in range(model.cfg.n_layers - 1):
 
     forward_implications = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
 
-    forward_implications[forward_implications.abs() < interaction_threshold] = 0
+    forward_implications[forward_implications.abs() < similarity_threshold] = 0
     forward_implications = forward_implications.nan_to_num()
 
     np.savez_compressed(output_filename_fn(layer), forward_implications)
