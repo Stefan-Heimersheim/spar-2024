@@ -131,5 +131,28 @@ class BackwardImplicationAggregator:
     
 
 class JaccardSimilarityAggregator:
-    # TODO: Add implementation
-    pass
+    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound=0.0):
+        self.layer = layer
+        self.n_features = n_features
+        self.lower_bound = lower_bound
+
+        n_features_1, n_features_2 = n_features
+
+        self.counts = torch.zeros(n_features_1, n_features_2)
+        self.sums = torch.zeros(n_features_1, n_features_2)
+
+    def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
+        n_features_1, n_features_2 = self.n_features
+        
+        activations_1 = activations[self.layer, :n_features_1, :]
+        activations_2 = activations[self.layer + 1, :n_features_2, :]
+
+        active_1 = (activations_1 > self.lower_bound).float()
+        active_2 = (activations_2 > self.lower_bound).float()
+        active_1_2 = einops.einsum(active_1, active_2, 'n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2')
+
+        self.counts += active_1.sum(dim=-1).unsqueeze(1) + active_2.sum(dim=-1).unsqueeze(0) - active_1_2
+        self.sums += active_1_2
+
+    def finalize(self):
+        return self.sums / self.counts
