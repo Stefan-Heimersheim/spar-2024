@@ -18,7 +18,8 @@ class PearsonCorrelationAggregator:
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:
-            shape (Size): Shape of the result.
+            layer (int): First of the two subsequent layers for similarity computation.
+            n_features (Tuple[int, int]): Number of features to include per layer.
         """
         self.layer = layer
         self.n_features = n_features
@@ -54,7 +55,7 @@ class PearsonCorrelationAggregator:
 
         self.sums_1_2 += einops.einsum(activations_1, activations_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
 
-    def finalize(self):
+    def finalize(self) -> Float[Tensor, 'n_features n_features']:
         # Compute means
         means_1 = self.sums_1 / self.count
         means_2 = self.sums_2 / self.count
@@ -78,6 +79,13 @@ class PearsonCorrelationAggregator:
 
 class ForwardImplicationAggregator:
     def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound=0.0):
+        """Calculates the pair-wise forward implication of two tensors that are
+        provided batch-wise. All computations are done element-wise with einsum.
+
+        Args:
+            layer (int): First of the two subsequent layers for similarity computation.
+            n_features (Tuple[int, int]): Number of features to include per layer.
+        """
         self.layer = layer
         self.n_features = n_features
         self.lower_bound = lower_bound
@@ -105,6 +113,13 @@ class ForwardImplicationAggregator:
 
 class BackwardImplicationAggregator:
     def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound=0.0):
+        """Calculates the pair-wise backward implication of two tensors that are
+        provided batch-wise. All computations are done element-wise with einsum.
+
+        Args:
+            layer (int): First of the two subsequent layers for similarity computation.
+            n_features (Tuple[int, int]): Number of features to include per layer.
+        """
         self.layer = layer
         self.n_features = n_features
         self.lower_bound = lower_bound
@@ -132,6 +147,13 @@ class BackwardImplicationAggregator:
 
 class JaccardSimilarityAggregator:
     def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound=0.0):
+        """Calculates the pair-wise Jaccard similarity of two tensors that are
+        provided batch-wise. All computations are done element-wise with einsum.
+
+        Args:
+            layer (int): First of the two subsequent layers for similarity computation.
+            n_features (Tuple[int, int]): Number of features to include per layer.
+        """
         self.layer = layer
         self.n_features = n_features
         self.lower_bound = lower_bound
