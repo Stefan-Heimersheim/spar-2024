@@ -31,7 +31,7 @@ import matplotlib.ticker as ticker
 from matplotlib.colors import LinearSegmentedColormap
 
 import sys
-sys.path.append(os.path.join(os.path.dirname(__file__), '../..', 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from pipeline_helpers import load_model_and_saes, load_data
 from similarity_measures import DeadFeaturePairsAggregator
@@ -54,10 +54,10 @@ print(f"Device: {device}")
 # %%
 # Define number of tokens
 # number_of_batches, number_of_token_desc = 1, '4k'
-number_of_batches, number_of_token_desc = 32, '128k'
+# number_of_batches, number_of_token_desc = 32, '128k'
 # number_of_batches, number_of_token_desc = 256, '1M'
 # number_of_batches, number_of_token_desc = 1024, '4M'
-# number_of_batches, number_of_token_desc = 4269, '17.5M'
+number_of_batches, number_of_token_desc = 4269, '17.5M'
 
 
 # %%
@@ -81,7 +81,7 @@ n_features_2 = 24576
 activity_lower_bound = 0.0
 co_activation_thresholds = [0, 5, 10, 50, 100]
 evaluation_frequency = 16  # Evaluate number of empty-overlap pairs every X batches
-output_filename = f'../../artefacts/{output_folder}/res_jb_sae_{measure_name}_{number_of_token_desc}_{n_features_1}_{n_features_2}_{activity_lower_bound}.npz'
+output_filename = f'{output_folder}/res_jb_sae_{measure_name}_{number_of_token_desc}_{n_features_1}_{n_features_2}_{activity_lower_bound}.npz'
 
 d_sae = saes[0].cfg.d_sae
 

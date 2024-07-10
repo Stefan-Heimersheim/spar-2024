@@ -4,7 +4,7 @@
 # %%
 # Imports
 from typing import Tuple
-from jaxtyping import Float
+from jaxtyping import Float, Int
 from torch import Tensor
 
 import torch
@@ -55,7 +55,7 @@ class PearsonCorrelationAggregator:
 
         self.sums_1_2 += einops.einsum(activations_1, activations_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
 
-    def finalize(self) -> Float[Tensor, 'n_features n_features']:
+    def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
         # Compute means
         means_1 = self.sums_1 / self.count
         means_2 = self.sums_2 / self.count
@@ -107,7 +107,7 @@ class ForwardImplicationAggregator:
         self.counts += active_1.sum(dim=-1).unsqueeze(1)
         self.sums += einops.einsum(active_1, active_2, 'n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2')
 
-    def finalize(self):
+    def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
         return self.sums / self.counts
 
 
@@ -141,7 +141,7 @@ class BackwardImplicationAggregator:
         self.counts += active_2.sum(dim=-1).unsqueeze(0)
         self.sums += einops.einsum(active_1, active_2, 'n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2')
 
-    def finalize(self):
+    def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
         return self.sums / self.counts
     
 
@@ -176,5 +176,28 @@ class JaccardSimilarityAggregator:
         self.counts += active_1.sum(dim=-1).unsqueeze(1) + active_2.sum(dim=-1).unsqueeze(0) - active_1_2
         self.sums += active_1_2
 
-    def finalize(self):
+    def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
         return self.sums / self.counts
+
+
+class DeadFeaturePairsAggregator:
+    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound: float = 0.0):
+        self.layer = layer
+        self.n_features = n_features
+        self.lower_bound = lower_bound
+
+        self.sums = torch.zeros(n_features, dtype=torch.int)
+
+    def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
+        n_features_1, n_features_2 = self.n_features
+        
+        activations_1 = activations[self.layer, :n_features_1, :]
+        activations_2 = activations[self.layer + 1, :n_features_2, :]
+
+        active_1 = (activations_1 > self.lower_bound).float()
+        active_2 = (activations_2 > self.lower_bound).float()
+
+        self.sums += einops.einsum(active_1, active_2, 'f1 t, f2 t -> f1 f2').int()
+
+    def finalize(self) -> Int[Tensor, 'n_features_1 n_features_2']:
+        return self.sums
