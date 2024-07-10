@@ -54,10 +54,10 @@ print(f"Device: {device}")
 # %%
 # Define number of tokens
 # number_of_batches, number_of_token_desc = 1, '4k'
-number_of_batches, number_of_token_desc = 32, '128k'
+# number_of_batches, number_of_token_desc = 32, '128k'
 # number_of_batches, number_of_token_desc = 256, '1M'
 # number_of_batches, number_of_token_desc = 1024, '4M'
-# number_of_batches, number_of_token_desc = 4269, '17.5M'
+number_of_batches, number_of_token_desc = 4269, '17.5M'
 
 
 # %%
@@ -130,7 +130,7 @@ n_layers = 12
 n_features_1 = 100
 n_features_2 = 24576
 
-dead_feature_pairs = np.load(f'../artefacts/{output_folder}/res_jb_sae_dead_feature_pairs_17.5M_100_24576_0.0.npz')['arr_0']
+dead_feature_pairs = np.load(f'../../artefacts/{output_folder}/res_jb_sae_dead_feature_pairs_17.5M_100_24576_0.0.npz')['arr_0']
 
 # All features are dead at the start
 dead_feature_pairs = np.concatenate([np.ones((len(co_activation_thresholds), n_layers - 1, 1)) * n_features_1 * n_features_2, dead_feature_pairs], axis=-1)
@@ -156,3 +156,19 @@ plt.xlabel('Number of tokens')
 plt.ylabel(f'Number of feature pairs with <= {co_activation_thresholds[threshold_index]} co-activations')
 plt.title(f'Number of dead SAE feature pairs')
 plt.show()
+
+
+# %%
+# Retrieve numbers for "Number of tokens required" section in paper
+token_thresholds = [1e6, 5e6, 10e6, 17.4e6]
+
+average_dead_feature_pairs = dead_feature_pairs.mean(axis=1) / (n_features_1 * n_features_2)
+
+average_dead_feature_pairs.shape
+
+for index, co_activation_threshold in enumerate(co_activation_thresholds):
+    for token_threshold in token_thresholds:
+        number_of_tokens = int(token_threshold // evaluation_frequency)
+        print(f'After {token_threshold} tokens, {(1 - average_dead_feature_pairs[index, number_of_tokens]) * 100:.1f}% of the feature pairs have more than {co_activation_threshold} co-activations.')
+
+    print()
