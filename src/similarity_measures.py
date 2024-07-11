@@ -201,3 +201,26 @@ class DeadFeaturePairsAggregator:
 
     def finalize(self) -> Int[Tensor, 'n_features_1 n_features_2']:
         return self.sums
+    
+
+class DeadFeaturesAggregator:
+    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound: float = 0.0):
+        self.layer = layer
+        self.n_features = n_features
+        self.lower_bound = lower_bound
+
+        self.sums = torch.zeros(n_features, dtype=torch.int)
+
+    def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
+        n_features_1, n_features_2 = self.n_features
+        
+        activations_1 = activations[self.layer, :n_features_1, :]
+        activations_2 = activations[self.layer + 1, :n_features_2, :]
+
+        active_1 = (activations_1 > self.lower_bound).float()
+        active_2 = (activations_2 > self.lower_bound).float()
+
+        self.sums += einops.einsum(active_1, active_2, 'f1 t, f2 t -> f1 f2').int()
+
+    def finalize(self) -> Int[Tensor, 'n_features_1 n_features_2']:
+        return self.sums
