@@ -98,34 +98,53 @@ def ablate_and_reconstruct_with_errors(activations: t.Tensor, hook: HookPoint, f
     return sae.decode(sae_feats) + sae_errors # we assume that the hooks are called in the correct order s.t. these errors correspond to the same tokens
 
 class DiffAgg:
-    def __init__(self) -> None:
+    # https://stackoverflow.com/questions/5543651/computing-standard-deviation-in-a-stream
+    def __init__(self, num_tokens_per_batch) -> None:
         self.sum_of_diffs = t.zeros(d_sae).to(device)
         self.sum_of_squared_diffs = t.zeros(d_sae).to(device)
-        self.total_num_of_diffs = 0
-        self.sum_of_masked_diffs = t.zeros(d_sae).to(device)
-        self.total_num_of_masked_diffs = 0
+        self.n = 0
+        self.num_tokens_per_batch = num_tokens_per_batch
+        self.mean_diffs = t.zeros(d_sae).to(device)
+        self.m2_diffs = t.zeros(d_sae).to(device)
         
-        # self.max_unablated_acts = t.zeros(d_sae).to(device)
-        # self.max_ablated_acts = t.zeros(d_sae).to(device)
+        # self.c = 0.0 # compensation for Kahan summation
+        # self.sum_of_masked_diffs = t.zeros(d_sae).to(device)
+        # self.total_num_of_masked_diffs = 0
     
     def process_global_second_layer_acts(self):
-        diffs = second_layer_unablated_acts - second_layer_ablated_acts
-        self.sum_of_diffs += t.sum(diffs, dim=(0, 1))
-        self.sum_of_squared_diffs += t.sum(diffs.pow(2), dim=(0, 1))
-        num_diffs = diffs.shape[0] * diffs.shape[1]
-        self.total_num_of_diffs += num_diffs
-        # self.max_unablated_acts = t.max(self.max_unablated_acts, second_layer_unablated_acts)
-        # self.max_ablated_acts = t.max(self.max_ablated_acts, second_layer_ablated_acts)
+        """
+        https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Parallel_algorithm
+
+        let a be the previous `self` aggregations and b be the new batch's aggregations
+        and ab is the result of combining the previous aggregations with the batch aggs
+        """
+        curr_diffs = second_layer_unablated_acts - second_layer_ablated_acts
+        # create the local vars to match the algorithm
+        n_a = self.n
+        n_b = self.num_tokens_per_batch
+        n_ab = n_a + n_b
+        mean_b = curr_diffs.mean(dim=(0,1))
+        mean_a = self.mean_diffs
+        delta = mean_b - mean_a
+        mean_ab = mean_a + delta * (n_b / n_ab)
+        m2_a = self.m2_diffs
+        # M2 aggregates the squared distance from the mean
+        m2_b = (mean_b - curr_diffs).pow(2).sum(dim=(0, 1))
+        m2_ab = m2_a + m2_b + (delta.pow(2) * n_a * n_b / n_ab)
+        
+        # update self vars
+        self.n = n_ab
+        self.mean_diffs = mean_ab
+        self.m2_diffs = m2_ab
         
     def finalize(self):
-        self.means = self.sum_of_diffs / self.total_num_of_diffs
-        self.variances = (self.sum_of_squared_diffs / self.total_num_of_diffs) - (self.means ** 2)
+        self.variances = self.m2_diffs / (self.n - 1)
         self.std_devs = t.sqrt(self.variances)
         
 first_layer_feat_idx = 10715
 first_layer_idx = 0
 count = 0
-diff_agg = DiffAgg()
+diff_agg = DiffAgg(num_tokens_per_batch=batch_size*context_size)
 with torch.no_grad():
     for batch_tokens in tqdm(data_loader):
         if count >= 1:
@@ -162,10 +181,10 @@ with torch.no_grad():
         diff_agg.process_global_second_layer_acts()
         count += 1
 diff_agg.finalize()
-print(diff_agg.means)
+print(diff_agg.mean_diffs)
 print(diff_agg.std_devs)
-print(diff_agg.max_unablated_acts)
-print(diff_agg.max_ablated_acts)
+# print(diff_agg.max_unablated_acts)
+# print(diff_agg.max_ablated_acts)
 ## 
 # 0.05463759% 
 
