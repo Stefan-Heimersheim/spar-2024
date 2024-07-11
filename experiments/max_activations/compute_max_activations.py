@@ -107,3 +107,16 @@ with torch.no_grad():
 
     with open('res_jb_max_sae_activations.pt', 'wb') as f:
         torch.save(max_activations, f)
+
+
+# %%
+import torch
+import numpy as np
+import matplotlib.pyplot as plt
+
+x = np.load('../../artefacts/max_sae_activations/res_jb_max_sae_activations.npz')['arr_0']
+# %%
+plt.hist(x.flatten(), bins=1000)
+plt.title('Histogram of maximum activation per feature')
+plt.ylabel('Number of SAE features (across layers)')
+plt.xlabel('Maximum activation over 17.5M tokens')

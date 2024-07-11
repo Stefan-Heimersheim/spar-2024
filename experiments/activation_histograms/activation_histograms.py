@@ -3,5 +3,5 @@
 
 
 # %%
-# For a given similarity measure and layer, plot the activation histogram
-# and 
+# Run the model with an aggregator, collecting the activations of all SAE
+# features
