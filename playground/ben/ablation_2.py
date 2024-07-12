@@ -102,12 +102,16 @@ class DiffAgg:
     def __init__(self, num_tokens_per_batch) -> None:
         self.sum_of_diffs = t.zeros(d_sae).to(device)
         self.sum_of_squared_diffs = t.zeros(d_sae).to(device)
-        self.n = 0
+        self.n_total = 0
+        self.n_active_per_feat = t.zeros(d_sae).to(device) # number of original activations that were > min_activation
+        self.min_activation = 1e-15 # TODO: should be diff?
         self.num_tokens_per_batch = num_tokens_per_batch
         self.mean_diffs = t.zeros(d_sae).to(device)
         self.m2_diffs = t.zeros(d_sae).to(device)
         
-        # self.c = 0.0 # compensation for Kahan summation
+        # will only contain the means of the activation diffs in which the first layer's activation was > 0
+        self.masked_means = t.zeros(d_sae).to(device)
+        self.masked_m2 = t.zeros(d_sae).to(device)
         # self.sum_of_masked_diffs = t.zeros(d_sae).to(device)
         # self.total_num_of_masked_diffs = 0
     
@@ -120,7 +124,7 @@ class DiffAgg:
         """
         curr_diffs = second_layer_unablated_acts - second_layer_ablated_acts
         # create the local vars to match the algorithm
-        n_a = self.n
+        n_a = self.n_total
         n_b = self.num_tokens_per_batch
         n_ab = n_a + n_b
         mean_b = curr_diffs.mean(dim=(0,1))
@@ -132,14 +136,43 @@ class DiffAgg:
         m2_b = (mean_b - curr_diffs).pow(2).sum(dim=(0, 1))
         m2_ab = m2_a + m2_b + (delta.pow(2) * n_a * n_b / n_ab)
         
+        # process only the activations where the first layer was active
+        active_mask = second_layer_unablated_acts > self.min_activation # TODO: do some sort of tolerance?
+        masked_diffs = (curr_diffs * active_mask)
+        masked_n_a = self.n_active_per_feat
+        masked_n_b = active_mask.sum(dim=(0,1))
+        masked_n_ab = masked_n_a + masked_n_b
+        masked_sum_b = masked_diffs.sum(dim=(0,1))
+        masked_mean_b = (masked_sum_b / masked_n_b).nan_to_num() # TODO: is this cool??
+        masked_mean_a = self.masked_means
+        masked_delta = masked_mean_b - masked_mean_a
+        masked_mean_ab = masked_mean_a + masked_delta * (masked_n_b / masked_n_ab)
+        masked_m2_a = self.masked_m2
+        masked_m2_b = (masked_mean_b - masked_diffs).pow(2).sum(dim=(0,1))
+        masked_m2_ab = (
+            masked_m2_a
+            + masked_m2_b
+            + masked_delta.pow(2) * masked_n_a * masked_n_b / masked_n_ab
+        )
+        # masked_diffs = second_layer_unablated_acts[active_mask] - second_layer_ablated_acts[active_mask]
+        # hmm...how am I supposed to...mask this properly?
+        # num_active_feats = active_mask.sum(dim=(0, 1))
+        
         # update self vars
-        self.n = n_ab
+        self.n_total = n_ab
         self.mean_diffs = mean_ab
         self.m2_diffs = m2_ab
+
+        self.n_active_per_feat = masked_n_ab
+        self.masked_means = masked_mean_ab
+        self.masked_m2 = masked_m2_ab
         
     def finalize(self):
-        self.variances = self.m2_diffs / (self.n - 1)
+        self.variances = self.m2_diffs / (self.n_total)
         self.std_devs = t.sqrt(self.variances)
+        self.masked_variances = self.masked_m2 / (self.n_active_per_feat)
+        self.masked_stdevs = t.sqrt(self.variances)
+
         
 first_layer_feat_idx = 10715
 first_layer_idx = 0
@@ -147,7 +180,7 @@ count = 0
 diff_agg = DiffAgg(num_tokens_per_batch=batch_size*context_size)
 with torch.no_grad():
     for batch_tokens in tqdm(data_loader):
-        if count >= 1:
+        if count >= 3:
             break
         model.reset_hooks()
         # collect the unablated activations
@@ -189,7 +222,6 @@ print(diff_agg.std_devs)
 # 0.05463759% 
 
 # %%
-print(diff_agg.means)
 """
 # ideal case - how do we know this is successful? lots of 0s
 
