@@ -147,7 +147,7 @@ count = 0
 diff_agg = DiffAgg(num_tokens_per_batch=batch_size*context_size)
 with torch.no_grad():
     for batch_tokens in tqdm(data_loader):
-        if count >= 1:
+        if count >= 3:
             break
         model.reset_hooks()
         # collect the unablated activations
@@ -189,7 +189,6 @@ print(diff_agg.std_devs)
 # 0.05463759% 
 
 # %%
-print(diff_agg.means)
 """
 # ideal case - how do we know this is successful? lots of 0s
 

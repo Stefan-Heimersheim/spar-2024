@@ -1,5 +1,18 @@
 # spar-2024
 
+## Setting up on CAIS
+- setup your `.ssh/config` to be able to quickly login (also see the CAIS [wiki](https://cluster.safe.ai/#getting-cluster-access))
+- `ssh cais`
+- request a CPU-only node with `srun --gpus=0 --partition=single --pty bash` (you shouldn't install anything on the login node)
+- `git clone https://github.com/Stefan-Heimersheim/spar-2024`
+- [Install conda](https://cluster.safe.ai/#install-miniconda-or-anaconda)
+- `conda create -n spar python=3.11`
+- `conda activate spar`
+- `conda install torch`
+- `pip install -r requirements.txt`
+- Install the `remote explorer` extension in vscode and select `cps` (the node you created earlier)
+
+
 ## Folder structure
 ### Playground
 This folder is for quick-and-dirty experimenting without direct applicability to the project results.
