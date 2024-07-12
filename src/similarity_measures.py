@@ -85,6 +85,7 @@ class ForwardImplicationAggregator:
         Args:
             layer (int): First of the two subsequent layers for similarity computation.
             n_features (Tuple[int, int]): Number of features to include per layer.
+            lower_bound (float): Threshold to distinguish between active and inactive.
         """
         self.layer = layer
         self.n_features = n_features
@@ -119,6 +120,7 @@ class BackwardImplicationAggregator:
         Args:
             layer (int): First of the two subsequent layers for similarity computation.
             n_features (Tuple[int, int]): Number of features to include per layer.
+            lower_bound (float): Threshold to distinguish between active and inactive.
         """
         self.layer = layer
         self.n_features = n_features
@@ -153,6 +155,7 @@ class JaccardSimilarityAggregator:
         Args:
             layer (int): First of the two subsequent layers for similarity computation.
             n_features (Tuple[int, int]): Number of features to include per layer.
+            lower_bound (float): Threshold to distinguish between active and inactive.
         """
         self.layer = layer
         self.n_features = n_features
@@ -178,6 +181,35 @@ class JaccardSimilarityAggregator:
 
     def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
         return self.sums / self.counts
+
+
+class MutualInformationAggregator:
+    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound=0.0):
+        """Calculates the pair-wise (binary) mutual information of two tensors that are
+        provided batch-wise. All computations are done element-wise with einsum.
+
+        Args:
+            layer (int): First of the two subsequent layers for similarity computation.
+            n_features (Tuple[int, int]): Number of features to include per layer.
+            lower_bound (float): Threshold to distinguish between active and inactive.
+        """
+        self.layer = layer
+        self.n_features = n_features
+        self.lower_bound = lower_bound
+
+        n_features_1, n_features_2 = n_features
+
+    def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
+        pass
+
+    def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
+        
+        # Calculate mutual information
+        mutual_information = torch.zeros(self.n_features)
+        for pxy, px, py in zip([p00, p01, p10, p11], [px0, px0, px1, px1], [py0, py1, py0, py1]):
+            mutual_information += (pxy * torch.log(pxy / (px * py))).nan_to_num()
+
+        return mutual_information
 
 
 class DeadFeaturePairsAggregator:
