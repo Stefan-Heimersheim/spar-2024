@@ -5,6 +5,10 @@
 #
 # The main steps are:
 # 1. Create feature similarity matrices for all considered measures.
+#    1.1 Create and locally save full matrices (one per layer pair)
+#    1.2 Create stats (e.g., histograms) from the raw data
+#    1.3 Compress matrices by clamping close-to-zero values
+#    1.4 Store the compressed matrices (one per measure) in /artefacts
 # 2. Build a feature similarity graph from each matrix.
 # 3. Identify feature pairs for causal analysis.
 # 4. Build a causal similarity graph via activation patching.
