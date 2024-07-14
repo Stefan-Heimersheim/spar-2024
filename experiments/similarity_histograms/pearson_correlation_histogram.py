@@ -24,12 +24,11 @@ nan_count = np.count_nonzero(np.isnan(matrix))
 non_zero_count = np.count_nonzero(matrix) - nan_count
 zero_count = number_of_entries - nan_count - non_zero_count
 
-
-# %%
 print(f'{number_of_entries=:,}\n{nan_count=:,}\n{zero_count=:,}\n{non_zero_count=:,}')
 
 
-# %% Create histogram of non-nans/non-zeros
+# %% 
+# Create histogram of non-nans/non-zeros
 flat_matrix = matrix.flatten()
 nonzero_values = flat_matrix[flat_matrix > 0]
 
