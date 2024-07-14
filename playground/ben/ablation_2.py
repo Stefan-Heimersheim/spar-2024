@@ -24,6 +24,7 @@ import jaxtyping as jt
 from transformer_lens.utils import tokenize_and_concatenate
 from datasets import load_dataset
 from torch.utils.data import DataLoader
+from src.similarity_helpers import load_correlation_data, save_compressed
 
 if t.backends.mps.is_available():
     device = "mps"
@@ -94,7 +95,7 @@ def ablate_and_reconstruct_with_errors(activations: t.Tensor, hook: HookPoint, f
     global sae_errors
     sae: SAE = sae_id_to_sae[hook.name]
     sae_feats = sae.encode(activations)
-    sae_feats[:,:,feature_idx] = 0    
+    sae_feats[:,:,feature_idx] = 0
     return sae.decode(sae_feats) + sae_errors # we assume that the hooks are called in the correct order s.t. these errors correspond to the same tokens
 
 class DiffAgg:
@@ -103,8 +104,8 @@ class DiffAgg:
         self.sum_of_diffs = t.zeros(d_sae).to(device)
         self.sum_of_squared_diffs = t.zeros(d_sae).to(device)
         self.n_total = 0
-        self.n_active_per_feat = t.zeros(d_sae).to(device) # number of original activations that were > min_activation
-        self.min_activation = 1e-15 # TODO: should be diff?
+        self.masked_n = t.zeros(d_sae).to(device) # number of original activations that were > min_activation
+        self.min_activation_tol = 1e-15 # TODO: should be diff?
         self.num_tokens_per_batch = num_tokens_per_batch
         self.mean_diffs = t.zeros(d_sae).to(device)
         self.m2_diffs = t.zeros(d_sae).to(device)
@@ -137,9 +138,9 @@ class DiffAgg:
         m2_ab = m2_a + m2_b + (delta.pow(2) * n_a * n_b / n_ab)
         
         # process only the activations where the first layer was active
-        active_mask = second_layer_unablated_acts > self.min_activation # TODO: do some sort of tolerance?
+        active_mask = second_layer_unablated_acts > self.min_activation_tol # TODO: do some sort of tolerance?
         masked_diffs = (curr_diffs * active_mask)
-        masked_n_a = self.n_active_per_feat
+        masked_n_a = self.masked_n
         masked_n_b = active_mask.sum(dim=(0,1))
         masked_n_ab = masked_n_a + masked_n_b
         masked_sum_b = masked_diffs.sum(dim=(0,1))
@@ -154,33 +155,30 @@ class DiffAgg:
             + masked_m2_b
             + masked_delta.pow(2) * masked_n_a * masked_n_b / masked_n_ab
         )
-        # masked_diffs = second_layer_unablated_acts[active_mask] - second_layer_ablated_acts[active_mask]
-        # hmm...how am I supposed to...mask this properly?
-        # num_active_feats = active_mask.sum(dim=(0, 1))
         
         # update self vars
         self.n_total = n_ab
         self.mean_diffs = mean_ab
         self.m2_diffs = m2_ab
 
-        self.n_active_per_feat = masked_n_ab
+        self.masked_n = masked_n_ab
         self.masked_means = masked_mean_ab
         self.masked_m2 = masked_m2_ab
         
     def finalize(self):
         self.variances = self.m2_diffs / (self.n_total)
         self.std_devs = t.sqrt(self.variances)
-        self.masked_variances = self.masked_m2 / (self.n_active_per_feat)
+        self.masked_variances = self.masked_m2 / (self.masked_n)
         self.masked_stdevs = t.sqrt(self.variances)
 
         
 first_layer_feat_idx = 10715
 first_layer_idx = 0
-count = 0
+num_batches = num_batches_left = 32
 diff_agg = DiffAgg(num_tokens_per_batch=batch_size*context_size)
 with torch.no_grad():
     for batch_tokens in tqdm(data_loader):
-        if count >= 3:
+        if num_batches_left == 0:
             break
         model.reset_hooks()
         # collect the unablated activations
@@ -212,49 +210,24 @@ with torch.no_grad():
             ]
         )
         diff_agg.process_global_second_layer_acts()
-        count += 1
+        num_batches_left -= 1
+
 diff_agg.finalize()
-print(diff_agg.mean_diffs)
-print(diff_agg.std_devs)
-# print(diff_agg.max_unablated_acts)
-# print(diff_agg.max_ablated_acts)
-## 
-# 0.05463759% 
 
 # %%
-"""
-# ideal case - how do we know this is successful? lots of 0s
-
-layer_2_unablated_act | layer_2_ablated_act
-0 0
-0 0
-0 0
-8 1
-10 2
-7 1
-0 0
-0 0
-0 0
-...
-
-# stranger case - consistently weird impact on feature 2
-0 0
-0 0
-0 0
-10 15
-7 4
-8 14
-9 3
-10 5
-0 0
-
-
-# STEPS
-1. filter down to ONLY the times when layer 2, unablated, was nonzero
-2. measure mean diff and std dev of diff
------
-1. calculate MSE
-2. explore results
-
-"""
-# %%
+directory = "artefacts/ablations"
+filename_prefix_parts = [
+    ('num_sents', num_of_sentences),
+    ('layer', first_layer_idx),
+    ('feat', first_layer_feat_idx),
+    ('num_batches', num_batches) 
+]
+filename_prefix = "__".join(
+    ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
+)
+# filename_prefix = f'num_sents_{num_of_sentences}_layer_{first_layer_idx}_feat_{first_layer_feat_idx}_num_batches_{num_batches}'
+attrs = ["variances", "std_devs", "masked_variances", "masked_stdevs"]
+for attr in attrs:
+    filename = f"{directory}/{filename_prefix}__{attr}.npz"
+    matrix = getattr(diff_agg, attr).detach().cpu().numpy()
+    save_compressed(matrix, filename)
