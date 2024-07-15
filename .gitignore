@@ -5,3 +5,5 @@ __pycache__
 *.pyc
 data/
 plots/
+.unclamped/
+settings.json
