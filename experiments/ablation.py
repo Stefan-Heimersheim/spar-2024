@@ -10,6 +10,8 @@ getting lots more ablation scores at once
 """
 
 # %%
+from src.similarity_helpers import save_compressed
+import argparse
 import torch as t
 import torch
 from sae_lens import SAE
@@ -20,7 +22,6 @@ from functools import partial
 from transformer_lens.utils import tokenize_and_concatenate
 from datasets import load_dataset
 from torch.utils.data import DataLoader
-from src.similarity_helpers import save_compressed
 import matplotlib.pyplot as plt
 
 if t.backends.mps.is_available():
@@ -61,12 +62,12 @@ token_dataset = tokenize_and_concatenate(
     max_length=context_size,
     add_bos_token=prepend_bos,
 )
+def num_of_sentences(num_batches):
+    return batch_size * num_batches
 
-# OPTIONAL: Reduce dataset for faster experimentation
-num_batches = 33
-num_of_sentences = batch_size * num_batches
-tokens = token_dataset['tokens'][:num_of_sentences]
-data_loader = DataLoader(tokens, batch_size=batch_size, shuffle=False)
+def load_data(num_batches):
+    tokens = token_dataset['tokens'][:num_of_sentences(num_batches)]
+    return DataLoader(tokens, batch_size=batch_size, shuffle=False)
 # %%
 sae_errors = t.empty(batch_size, context_size, model.cfg.d_model)
 second_layer_unablated_acts = t.empty(batch_size, context_size, d_sae)
@@ -172,50 +173,51 @@ class DiffAgg:
         self.std_devs = t.sqrt(self.variances)
         self.masked_variances = self.masked_m2 / self.masked_n
         self.masked_stdevs = t.sqrt(self.variances)
-
         
 first_layer_feat_idx = 10715
 first_layer_idx = 0
-num_batches_left = num_batches
-diff_agg = DiffAgg(num_tokens_per_batch=batch_size*context_size)
-print("Collecting diff aggs")
-with torch.no_grad():
-    for batch_tokens in tqdm(data_loader):
-        if num_batches_left == 0:
-            break
-        model.reset_hooks()
-        # collect the unablated activations
-        model.run_with_hooks(
-            batch_tokens,
-            fwd_hooks=[
-                (
-                    f"blocks.{first_layer_idx}.hook_resid_pre", 
-                    save_error_terms,
-                ),
-                (
-                    f"blocks.{first_layer_idx+1}.hook_resid_pre", 
-                    partial(save_second_layer_acts, ablated=False),
-                )
-            ]
-        )
-        # collect the activations after ablation
-        model.run_with_hooks(
-            batch_tokens,
-            fwd_hooks=[
-                (
-                    f"blocks.{first_layer_idx}.hook_resid_pre", 
-                    partial(ablate_and_reconstruct_with_errors, feature_idx=first_layer_feat_idx)
-                ),
-                (
-                    f"blocks.{first_layer_idx+1}.hook_resid_pre", 
-                    partial(save_second_layer_acts, ablated=True)
-                )
-            ]
-        )
-        diff_agg.process_global_second_layer_acts()
-        num_batches_left -= 1
-
-diff_agg.finalize()
+def create_diff_agg(num_batches):
+    data_loader = load_data(num_batches)
+    diff_agg = DiffAgg(num_tokens_per_batch=batch_size*context_size)
+    print("Collecting diff aggs")
+    num_batches_left = num_batches
+    with torch.no_grad():
+        for batch_tokens in tqdm(data_loader):
+            if num_batches_left == 0:
+                break
+            model.reset_hooks()
+            # collect the unablated activations
+            model.run_with_hooks(
+                batch_tokens,
+                fwd_hooks=[
+                    (
+                        f"blocks.{first_layer_idx}.hook_resid_pre", 
+                        save_error_terms,
+                    ),
+                    (
+                        f"blocks.{first_layer_idx+1}.hook_resid_pre", 
+                        partial(save_second_layer_acts, ablated=False),
+                    )
+                ]
+            )
+            # collect the activations after ablation
+            model.run_with_hooks(
+                batch_tokens,
+                fwd_hooks=[
+                    (
+                        f"blocks.{first_layer_idx}.hook_resid_pre", 
+                        partial(ablate_and_reconstruct_with_errors, feature_idx=first_layer_feat_idx)
+                    ),
+                    (
+                        f"blocks.{first_layer_idx+1}.hook_resid_pre", 
+                        partial(save_second_layer_acts, ablated=True)
+                    )
+                ]
+            )
+            diff_agg.process_global_second_layer_acts()
+            num_batches_left -= 1
+    diff_agg.finalize()
+    return diff_agg
 
 # %%
 def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
@@ -248,19 +250,28 @@ def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
     plt.title(f'Histogram of Bottom {cutoff*100}% of {tensor_desc}')
     plt.show()
 # %%
-directory = "artefacts/ablations"
-filename_prefix_parts = [
-    ('num_sents', num_of_sentences),
-    ('layer', first_layer_idx),
-    ('feat', first_layer_feat_idx),
-    ('num_batches', num_batches) 
-]
-filename_prefix = "__".join(
-    ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
-)
-attrs = ["variances", "std_devs", "masked_variances", "masked_stdevs", "masked_mse", "mse"]
-print("Saving activation diff aggregations")
-for attr in attrs:
-    filename = f"{directory}/{filename_prefix}__{attr}.npz"
-    matrix = getattr(diff_agg, attr).detach().cpu().numpy()
-    save_compressed(matrix, filename)
+def save_diff_aggs(diff_agg, num_batches):
+    directory = "artefacts/ablations"
+    filename_prefix_parts = [
+        ('layer', first_layer_idx),
+        ('feat', first_layer_feat_idx),
+        ('num_batches', num_batches) 
+    ]
+    filename_prefix = "__".join(
+        ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
+    )
+    attrs = ["variances", "std_devs", "masked_variances", "masked_stdevs", "masked_mse", "mse"]
+    print("Saving activation diff aggregations")
+    for attr in attrs:
+        filename = f"{directory}/{filename_prefix}__{attr}.npz"
+        matrix = getattr(diff_agg, attr).detach().cpu().numpy()
+        save_compressed(matrix, filename)
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', type=int, help='num of batches', default=32)
+    parser.add_argument('--dry-run', type=bool, help='dry run (do not save)', action=argparse.BooleanOptionalAction)
+    args = parser.parse_args()
+    diff_agg = create_diff_agg(args.n)
+    if not args.dry_run:
+        save_diff_aggs(diff_agg, args.n)
