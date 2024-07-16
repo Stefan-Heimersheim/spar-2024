@@ -1,7 +1,7 @@
 # %%
 import os
 # OPTIONAL: Set environment variable to control visibility of GPUs
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import torch
 import einops
@@ -55,7 +55,7 @@ output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_similari
 
 d_sae = saes[0].cfg.d_sae
 
-for layer in range(2, model.cfg.n_layers - 1):
+for layer in range(model.cfg.n_layers - 1):
     aggregator = PearsonCorrelationAggregator(layer, (d_sae, d_sae))
 
     pearson_correlations = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
