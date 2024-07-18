@@ -10,7 +10,6 @@ getting lots more ablation scores at once
 """
 
 # %%
-from src.similarity_helpers import save_compressed
 import argparse
 import torch as t
 import torch
@@ -173,7 +172,26 @@ class DiffAgg:
         self.std_devs = t.sqrt(self.variances)
         self.masked_variances = self.masked_m2 / self.masked_n
         self.masked_stdevs = t.sqrt(self.variances)
-        
+
+    def save(self, num_batches):
+        directory = "artefacts/ablations"
+        filename_prefix_parts = [
+            ('layer', first_layer_idx),
+            ('feat', first_layer_feat_idx),
+            ('num_batches', num_batches) 
+        ]
+        filename_prefix = "__".join(
+            ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
+        )
+        attrs = ["variances", "std_devs", "masked_variances", "masked_stdevs", "masked_mse", "mse"]
+        print("Saving activation diff aggregations")
+        name_to_tensor = {
+            name: getattr(self, name)
+            for name in attrs
+        }
+        filename = f"{directory}/{filename_prefix}.pth"
+        t.save(name_to_tensor, filename)
+            
 first_layer_feat_idx = 10715
 first_layer_idx = 0
 def create_diff_agg(num_batches):
@@ -249,23 +267,7 @@ def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
     plt.ylabel('Frequency')
     plt.title(f'Histogram of Bottom {cutoff*100}% of {tensor_desc}')
     plt.show()
-# %%
-def save_diff_aggs(diff_agg, num_batches):
-    directory = "artefacts/ablations"
-    filename_prefix_parts = [
-        ('layer', first_layer_idx),
-        ('feat', first_layer_feat_idx),
-        ('num_batches', num_batches) 
-    ]
-    filename_prefix = "__".join(
-        ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
-    )
-    attrs = ["variances", "std_devs", "masked_variances", "masked_stdevs", "masked_mse", "mse"]
-    print("Saving activation diff aggregations")
-    for attr in attrs:
-        filename = f"{directory}/{filename_prefix}__{attr}.npz"
-        matrix = getattr(diff_agg, attr).detach().cpu().numpy()
-        save_compressed(matrix, filename)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -274,4 +276,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
     diff_agg = create_diff_agg(args.n)
     if not args.dry_run:
-        save_diff_aggs(diff_agg, args.n)
+        diff_agg.save(args.n)
