@@ -97,19 +97,34 @@ def ablate_and_reconstruct_with_errors(activations: t.Tensor, hook: HookPoint, f
     sae_feats[:,:,feature_idx] = 0
     return sae.decode(sae_feats) + sae_errors # we assume that the hooks are called in the correct order s.t. these errors correspond to the same tokens
 
-class DiffAgg:
+class Aggregator:
     # https://stackoverflow.com/questions/5543651/computing-standard-deviation-in-a-stream
     def __init__(self, num_tokens_per_batch) -> None:
-        self.sum_of_diffs = t.zeros(d_sae).to(device)
-        self.sum_of_squared_diffs = t.zeros(d_sae).to(device)
-        self.sum_of_squared_masked_diffs= t.zeros(d_sae).to(device)
+        """
+        f2 = the second feature activation in the subsequent layer
+        f2_diffs = difference between f2 when f1 (the feature in the previous layer) is ablated vs unablated
+        masked_f2_diffs = f2_diffs, but only if unablated_f2 was non-zero
+        """
+        self.sum_of_f2_diffs = t.zeros(d_sae).to(device)
+        self.sum_of_squared_f2_diffs = t.zeros(d_sae).to(device)
+        self.sum_of_squared_masked_f2_diffs= t.zeros(d_sae).to(device)
         self.n_total = 0
         self.masked_n = t.zeros(d_sae).to(device) # number of original activations that were > min_activation
         self.min_activation_tol = 1e-15 # TODO: should be diff?
         self.num_tokens_per_batch = num_tokens_per_batch
         self.mean_diffs = t.zeros(d_sae).to(device)
         self.m2_diffs = t.zeros(d_sae).to(device)
+        self.sum_unablated_f2 = t.zeros(d_sae).to(device)
+        self.sum_ablated_f2 = t.zeros(d_sae).to(device)
         
+        # pre-defining the aggregates so that we don't have issues with defining vars outside if __init__
+        self.mse = None
+        self.masked_mse = None
+        self.variances = None
+        self.std_devs = None
+        self.masked_variances = None
+        self.masked_stdevs = None
+
         # will only contain the means of the activation diffs in which the first layer's activation was > 0
         self.masked_means = t.zeros(d_sae).to(device)
         self.masked_m2 = t.zeros(d_sae).to(device)
@@ -157,17 +172,19 @@ class DiffAgg:
         # update self vars
         self.n_total = n_ab
         self.mean_diffs = mean_ab
-        self.sum_of_squared_diffs += curr_diffs.pow(2).sum(dim=(0,1))
+        self.sum_of_squared_f2_diffs += curr_diffs.pow(2).sum(dim=(0,1))
         self.m2_diffs = m2_ab
 
         self.masked_n = masked_n_ab
         self.masked_means = masked_mean_ab
         self.masked_m2 = masked_m2_ab
-        self.sum_of_squared_masked_diffs += masked_diffs.pow(2).sum(dim=(0,1))
+        self.sum_of_squared_masked_f2_diffs += masked_diffs.pow(2).sum(dim=(0,1))
+        self.sum_unablated_f2 += second_layer_unablated_acts.sum(dim=(0,1))
+        self.sum_ablated_f2 += second_layer_ablated_acts.sum(dim=(0,1))
         
     def finalize(self):
-        self.mse = self.sum_of_squared_diffs / self.n_total
-        self.masked_mse = self.sum_of_squared_masked_diffs / self.masked_n
+        self.mse = self.sum_of_squared_f2_diffs / self.n_total
+        self.masked_mse = self.sum_of_squared_masked_f2_diffs / self.masked_n
         self.variances = self.m2_diffs / self.n_total
         self.std_devs = t.sqrt(self.variances)
         self.masked_variances = self.masked_m2 / self.masked_n
@@ -183,11 +200,11 @@ class DiffAgg:
         filename_prefix = "__".join(
             ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
         )
-        attrs = ["variances", "std_devs", "masked_variances", "masked_stdevs", "masked_mse", "mse"]
-        print("Saving activation diff aggregations")
+        tensor_keys = [key for key, val in self.__dict__.items() if isinstance(val, t.Tensor)]
+        print("Saving ablation activation aggs")
         name_to_tensor = {
             name: getattr(self, name)
-            for name in attrs
+            for name in tensor_keys
         }
         filename = f"{directory}/{filename_prefix}.pth"
         t.save(name_to_tensor, filename)
@@ -196,7 +213,7 @@ first_layer_feat_idx = 10715
 first_layer_idx = 0
 def create_diff_agg(num_batches):
     data_loader = load_data(num_batches)
-    diff_agg = DiffAgg(num_tokens_per_batch=batch_size*context_size)
+    agg = Aggregator(num_tokens_per_batch=batch_size*context_size)
     print("Collecting diff aggs")
     num_batches_left = num_batches
     with torch.no_grad():
@@ -232,10 +249,10 @@ def create_diff_agg(num_batches):
                     )
                 ]
             )
-            diff_agg.process_global_second_layer_acts()
+            agg.process_global_second_layer_acts()
             num_batches_left -= 1
-    diff_agg.finalize()
-    return diff_agg
+    agg.finalize()
+    return agg
 
 # %%
 def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
