@@ -1,7 +1,8 @@
 # %%
 import os
 # OPTIONAL: Set environment variable to control visibility of GPUs
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+# NOTE: This can break CUDA in Windows.
+#os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 import torch
 import einops
@@ -41,7 +42,6 @@ model, saes = load_model_and_saes(model_name='gpt2-small', sae_name='gpt2-small-
 
 tokens = load_data(model, saes[0], dataset_name='NeelNanda/pile-10k', number_of_batches=number_of_batches)
 
-
 # %%
 # For each pair of layers, call run_with_aggregator and save the result
 measure_name = 'jaccard_similarity'
@@ -53,7 +53,7 @@ if not os.path.exists(output_folder):
 activity_lower_bound = 0.0
 output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_correlation_{measure_name}_{layer}_{layer+1}_{number_of_token_desc}_{activity_lower_bound}.npz'
 
-d_sae = saes[0].cfg.d_sae
+d_sae : int= saes[0].cfg.d_sae
 
 for layer in [9, 10]: # range(model.cfg.n_layers - 1):
     aggregator = JaccardSimilarityAggregator(layer, (d_sae, d_sae), lower_bound=activity_lower_bound)
