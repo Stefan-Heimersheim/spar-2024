@@ -28,11 +28,10 @@ print(f'{number_of_entries=:,}\n{nan_count=:,}\n{zero_count=:,}\n{non_zero_count
 
 
 # %% 
-# Create histogram of non-nans/non-zeros
+# Create histogram of non-nans
 flat_matrix = matrix.flatten()
-nonzero_values = flat_matrix[flat_matrix > 0]
 
-plt.hist(nonzero_values, bins=100, log=True)
+plt.hist(flat_matrix, bins=200, log=True)
 plt.title('Pearson correlation: Histogram of all SAE feature pairs')
 plt.xlabel('Pearson correlation')
 plt.ylabel('Number of SAE feature pairs')
