@@ -10,6 +10,7 @@ getting lots more ablation scores at once
 """
 
 # %%
+import argparse
 import torch as t
 import torch
 from sae_lens import SAE
@@ -20,7 +21,6 @@ from functools import partial
 from transformer_lens.utils import tokenize_and_concatenate
 from datasets import load_dataset
 from torch.utils.data import DataLoader
-from src.similarity_helpers import save_compressed
 import matplotlib.pyplot as plt
 
 if t.backends.mps.is_available():
@@ -61,12 +61,12 @@ token_dataset = tokenize_and_concatenate(
     max_length=context_size,
     add_bos_token=prepend_bos,
 )
+def num_of_sentences(num_batches):
+    return batch_size * num_batches
 
-# OPTIONAL: Reduce dataset for faster experimentation
-num_batches = 33
-num_of_sentences = batch_size * num_batches
-tokens = token_dataset['tokens'][:num_of_sentences]
-data_loader = DataLoader(tokens, batch_size=batch_size, shuffle=False)
+def load_data(num_batches):
+    tokens = token_dataset['tokens'][:num_of_sentences(num_batches)]
+    return DataLoader(tokens, batch_size=batch_size, shuffle=False)
 # %%
 sae_errors = t.empty(batch_size, context_size, model.cfg.d_model)
 second_layer_unablated_acts = t.empty(batch_size, context_size, d_sae)
@@ -97,19 +97,34 @@ def ablate_and_reconstruct_with_errors(activations: t.Tensor, hook: HookPoint, f
     sae_feats[:,:,feature_idx] = 0
     return sae.decode(sae_feats) + sae_errors # we assume that the hooks are called in the correct order s.t. these errors correspond to the same tokens
 
-class DiffAgg:
+class Aggregator:
     # https://stackoverflow.com/questions/5543651/computing-standard-deviation-in-a-stream
     def __init__(self, num_tokens_per_batch) -> None:
-        self.sum_of_diffs = t.zeros(d_sae).to(device)
-        self.sum_of_squared_diffs = t.zeros(d_sae).to(device)
-        self.sum_of_squared_masked_diffs= t.zeros(d_sae).to(device)
+        """
+        f2 = the second feature activation in the subsequent layer
+        f2_diffs = difference between f2 when f1 (the feature in the previous layer) is ablated vs unablated
+        masked_f2_diffs = f2_diffs, but only if unablated_f2 was non-zero
+        """
+        self.sum_of_f2_diffs = t.zeros(d_sae).to(device)
+        self.sum_of_squared_f2_diffs = t.zeros(d_sae).to(device)
+        self.sum_of_squared_masked_f2_diffs= t.zeros(d_sae).to(device)
         self.n_total = 0
         self.masked_n = t.zeros(d_sae).to(device) # number of original activations that were > min_activation
         self.min_activation_tol = 1e-15 # TODO: should be diff?
         self.num_tokens_per_batch = num_tokens_per_batch
         self.mean_diffs = t.zeros(d_sae).to(device)
         self.m2_diffs = t.zeros(d_sae).to(device)
+        self.sum_unablated_f2 = t.zeros(d_sae).to(device)
+        self.sum_ablated_f2 = t.zeros(d_sae).to(device)
         
+        # pre-defining the aggregates so that we don't have issues with defining vars outside if __init__
+        self.mse = None
+        self.masked_mse = None
+        self.variances = None
+        self.std_devs = None
+        self.masked_variances = None
+        self.masked_stdevs = None
+
         # will only contain the means of the activation diffs in which the first layer's activation was > 0
         self.masked_means = t.zeros(d_sae).to(device)
         self.masked_m2 = t.zeros(d_sae).to(device)
@@ -157,65 +172,87 @@ class DiffAgg:
         # update self vars
         self.n_total = n_ab
         self.mean_diffs = mean_ab
-        self.sum_of_squared_diffs += curr_diffs.pow(2).sum(dim=(0,1))
+        self.sum_of_squared_f2_diffs += curr_diffs.pow(2).sum(dim=(0,1))
         self.m2_diffs = m2_ab
 
         self.masked_n = masked_n_ab
         self.masked_means = masked_mean_ab
         self.masked_m2 = masked_m2_ab
-        self.sum_of_squared_masked_diffs += masked_diffs.pow(2).sum(dim=(0,1))
+        self.sum_of_squared_masked_f2_diffs += masked_diffs.pow(2).sum(dim=(0,1))
+        self.sum_unablated_f2 += second_layer_unablated_acts.sum(dim=(0,1))
+        self.sum_ablated_f2 += second_layer_ablated_acts.sum(dim=(0,1))
         
     def finalize(self):
-        self.mse = self.sum_of_squared_diffs / self.n_total
-        self.masked_mse = self.sum_of_squared_masked_diffs / self.masked_n
+        self.mse = self.sum_of_squared_f2_diffs / self.n_total
+        self.masked_mse = self.sum_of_squared_masked_f2_diffs / self.masked_n
         self.variances = self.m2_diffs / self.n_total
         self.std_devs = t.sqrt(self.variances)
         self.masked_variances = self.masked_m2 / self.masked_n
         self.masked_stdevs = t.sqrt(self.variances)
 
-        
+    def save(self, num_batches):
+        directory = "artefacts/ablations"
+        filename_prefix_parts = [
+            ('layer', first_layer_idx),
+            ('feat', first_layer_feat_idx),
+            ('num_batches', num_batches) 
+        ]
+        filename_prefix = "__".join(
+            ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
+        )
+        tensor_keys = [key for key, val in self.__dict__.items() if isinstance(val, t.Tensor)]
+        print("Saving ablation activation aggs")
+        name_to_tensor = {
+            name: getattr(self, name)
+            for name in tensor_keys
+        }
+        filename = f"{directory}/{filename_prefix}.pth"
+        t.save(name_to_tensor, filename)
+            
 first_layer_feat_idx = 10715
 first_layer_idx = 0
-num_batches_left = num_batches
-diff_agg = DiffAgg(num_tokens_per_batch=batch_size*context_size)
-print("Collecting diff aggs")
-with torch.no_grad():
-    for batch_tokens in tqdm(data_loader):
-        if num_batches_left == 0:
-            break
-        model.reset_hooks()
-        # collect the unablated activations
-        model.run_with_hooks(
-            batch_tokens,
-            fwd_hooks=[
-                (
-                    f"blocks.{first_layer_idx}.hook_resid_pre", 
-                    save_error_terms,
-                ),
-                (
-                    f"blocks.{first_layer_idx+1}.hook_resid_pre", 
-                    partial(save_second_layer_acts, ablated=False),
-                )
-            ]
-        )
-        # collect the activations after ablation
-        model.run_with_hooks(
-            batch_tokens,
-            fwd_hooks=[
-                (
-                    f"blocks.{first_layer_idx}.hook_resid_pre", 
-                    partial(ablate_and_reconstruct_with_errors, feature_idx=first_layer_feat_idx)
-                ),
-                (
-                    f"blocks.{first_layer_idx+1}.hook_resid_pre", 
-                    partial(save_second_layer_acts, ablated=True)
-                )
-            ]
-        )
-        diff_agg.process_global_second_layer_acts()
-        num_batches_left -= 1
-
-diff_agg.finalize()
+def create_diff_agg(num_batches):
+    data_loader = load_data(num_batches)
+    agg = Aggregator(num_tokens_per_batch=batch_size*context_size)
+    print("Collecting diff aggs")
+    num_batches_left = num_batches
+    with torch.no_grad():
+        for batch_tokens in tqdm(data_loader):
+            if num_batches_left == 0:
+                break
+            model.reset_hooks()
+            # collect the unablated activations
+            model.run_with_hooks(
+                batch_tokens,
+                fwd_hooks=[
+                    (
+                        f"blocks.{first_layer_idx}.hook_resid_pre", 
+                        save_error_terms,
+                    ),
+                    (
+                        f"blocks.{first_layer_idx+1}.hook_resid_pre", 
+                        partial(save_second_layer_acts, ablated=False),
+                    )
+                ]
+            )
+            # collect the activations after ablation
+            model.run_with_hooks(
+                batch_tokens,
+                fwd_hooks=[
+                    (
+                        f"blocks.{first_layer_idx}.hook_resid_pre", 
+                        partial(ablate_and_reconstruct_with_errors, feature_idx=first_layer_feat_idx)
+                    ),
+                    (
+                        f"blocks.{first_layer_idx+1}.hook_resid_pre", 
+                        partial(save_second_layer_acts, ablated=True)
+                    )
+                ]
+            )
+            agg.process_global_second_layer_acts()
+            num_batches_left -= 1
+    agg.finalize()
+    return agg
 
 # %%
 def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
@@ -247,20 +284,13 @@ def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
     plt.ylabel('Frequency')
     plt.title(f'Histogram of Bottom {cutoff*100}% of {tensor_desc}')
     plt.show()
-# %%
-directory = "artefacts/ablations"
-filename_prefix_parts = [
-    ('num_sents', num_of_sentences),
-    ('layer', first_layer_idx),
-    ('feat', first_layer_feat_idx),
-    ('num_batches', num_batches) 
-]
-filename_prefix = "__".join(
-    ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
-)
-attrs = ["variances", "std_devs", "masked_variances", "masked_stdevs", "masked_mse", "mse"]
-print("Saving activation diff aggregations")
-for attr in attrs:
-    filename = f"{directory}/{filename_prefix}__{attr}.npz"
-    matrix = getattr(diff_agg, attr).detach().cpu().numpy()
-    save_compressed(matrix, filename)
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-n', type=int, help='num of batches', default=32)
+    parser.add_argument('--dry-run', type=bool, help='dry run (do not save)', action=argparse.BooleanOptionalAction)
+    args = parser.parse_args()
+    diff_agg = create_diff_agg(args.n)
+    if not args.dry_run:
+        diff_agg.save(args.n)
