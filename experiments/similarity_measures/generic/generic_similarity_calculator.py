@@ -14,9 +14,7 @@ from similarity_measures import (
     ForwardImplicationAggregator,
     BackwardImplicationAggregator,
     JaccardSimilarityAggregator,
-    MutualInformationAggregator,
-    DeadFeaturePairsAggregator,
-    DeadFeaturesAggregator
+    MutualInformationAggregator
 )
 
 # %%
@@ -32,9 +30,7 @@ aggregator_map = {
     'forward_implication': ForwardImplicationAggregator,
     'backward_implication': BackwardImplicationAggregator,
     'jaccard_similarity': JaccardSimilarityAggregator,
-    'mutual_information': MutualInformationAggregator,
-    'dead_feature_pairs': DeadFeaturePairsAggregator,
-    'dead_features': DeadFeaturesAggregator
+    'mutual_information': MutualInformationAggregator
 }
 
 def print_valid_aggregators():
@@ -55,7 +51,7 @@ AggregatorClass = aggregator_map[measure_name]
 
 
 # OPTIONAL: Set environment variable to control visibility of GPUs
-#os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 # OPTIONAL: Check if the correct GPU is visible
 print(torch.cuda.device_count())  # Should print 1
@@ -71,9 +67,9 @@ print(f"Device: {device}")
 
 # %%
 # Define number of tokens
-number_of_batches, number_of_token_desc = 1, '4k'
+# number_of_batches, number_of_token_desc = 1, '4k'
 # number_of_batches, number_of_token_desc = 32, '128k'
-# number_of_batches, number_of_token_desc = 256, '1M'
+number_of_batches, number_of_token_desc = 256, '1M'
 # number_of_batches, number_of_token_desc = 4269, '17.5M'
 
 # %%
@@ -84,16 +80,16 @@ tokens = load_data(model, saes[0], dataset_name='NeelNanda/pile-10k', number_of_
 # %%
 # For each pair of layers, call run_with_aggregator and save the result
 
-output_folder = f'../../../artefacts/similarity_measures/{measure_name}'
+output_folder = f'../../../artefacts/similarity_measures/{measure_name}/.unclamped'
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
 activity_lower_bound = 0.0
-output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_correlation_{measure_name}_{layer}_{layer+1}_{number_of_token_desc}_{activity_lower_bound}.npz'
+output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_correlation_{measure_name}_{number_of_token_desc}_{activity_lower_bound}_{layer}.npz'
 
 d_sae = saes[0].cfg.d_sae
 
-for layer in [9, 10]:  # range(model.cfg.n_layers - 1):
+for layer in [10]:  # range(model.cfg.n_layers - 1):
     aggregator = AggregatorClass(layer, (d_sae, d_sae), lower_bound=activity_lower_bound)
 
     similarities = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
