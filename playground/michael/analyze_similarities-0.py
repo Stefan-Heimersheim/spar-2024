@@ -1,6 +1,6 @@
 # %%
 # Imports
-from typing import Optional, List, Tuple
+from typing import Optional
 
 import os
 import numpy as np
@@ -10,6 +10,8 @@ import networkx as nx
 import requests
 import concurrent.futures
 from tqdm import tqdm
+from rich.console import Console
+from rich.markdown import Markdown
 
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..', 'src'))
@@ -19,7 +21,7 @@ from similarity_helpers import load_correlation_data, get_filename
 
 # %%
 # Load (clamped) similarity matrix
-measure_name = 'pearson_correlation'
+measure_name = 'jaccard_similarity'
 folder = f'../../artefacts/similarity_measures/{measure_name}'
 filename = get_filename(measure_name, 0.0, 0.1, '1M')
 similarities = np.load(f'{folder}/{filename}.npz')['arr_0']
@@ -60,7 +62,7 @@ print([len(ind) for ind in indices])
 # - Build a networkX graph with node labels (layer, feature, explanation) and edge labels (similarity)
 
 # Use k-means with k=2 to identify a cluster of high similarity values
-def find_high_similarity_cluster(values) -> Tuple[List[float], List[int]]:
+def find_high_similarity_cluster(values) -> tuple[list[float], list[int]]:
     values = values.reshape(-1, 1)
     
     clustering = KMeans(n_clusters=2, random_state=0).fit(values)
@@ -77,11 +79,12 @@ def add_features_to_graph(graph, layer, features):
         graph.add_node(f'{layer}_{feature}', layer=layer, feature=feature)
 
 
-def connect_features_in_graph(graph, layer, out_features, in_feature, similarities):
+def connect_features_in_graph(graph, layer, out_features, in_feature, similarities, measure):
     for out_feature, similarity in zip(out_features, similarities):
-        graph.add_edge(f'{layer-1}_{out_feature}', f'{layer}_{in_feature}', similarity=similarity)
+        graph.add_edge(f'{layer-1}_{out_feature}', f'{layer}_{in_feature}', similarity=similarity, measure=measure)
 
 
+# %%
 layer_from, layer_to = 9, 6
 
 # Start with some features in layer_from
@@ -170,3 +173,94 @@ def print_predecessor_subgraph_explanations(graph: nx.DiGraph, nodes: List[str])
 out_features = [node for node in graph.nodes() if len(list(graph.predecessors(node))) > 0]
 add_explanations(graph)
 print_predecessor_subgraph_explanations(graph, out_features)
+
+
+# %%
+layers = np.random.randint(1, 12, size=50)
+features = np.random.randint(0, 24576, size=50)
+
+downstream_features = list(zip(layers, features))
+print(f'Downstream features: {[f"{layer}_{feature}" for layer, feature in downstream_features]}')
+
+
+# %%
+graph = nx.MultiDiGraph()
+for layer, feature in downstream_features:
+    print(f'Feature {layer}_{feature}:')
+
+    graph.add_node(f'{layer}_{feature}', layer=layer, feature=feature)
+
+    cluster_values, cluster_indices = find_high_similarity_cluster(similarities[attr['layer'], :, attr['feature']])
+
+    if len(cluster_values) <= 10:
+        print(f'  {len(cluster_values)} highly similar features: {cluster_values}, {cluster_indices}')
+
+        add_features_to_graph(graph, layer - 1, cluster_indices)
+        connect_features_in_graph(graph, layer, cluster_indices, feature, cluster_values)
+    else:
+        print(f'  (skipped) {len(cluster_values)} highly similar features')
+
+
+# %%
+# Loop over all similarity measures
+measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information'] #, 'forward_implication', 'backward_implication']
+clamping_thresholds = [0.1, 0.1, 0.3]
+filenames = [f'res_jb_sae_feature_similarity_{measure}_1M_0.0_{clamping_threshold}' for measure, clamping_threshold in zip(measures, clamping_thresholds)]
+
+# %%
+graph = nx.MultiDiGraph()
+for measure, filename in tqdm(zip(measures, filenames), total=len(measures)):
+    folder = f'../../artefacts/similarity_measures/{measure}'
+    similarities = np.load(f'{folder}/{filename}.npz')['arr_0']
+
+    for layer, feature in downstream_features:
+        graph.add_node(f'{layer}_{feature}', layer=layer, feature=feature, is_downstream=True)
+
+        cluster_values, cluster_indices = find_high_similarity_cluster(similarities[layer - 1, :, feature])
+
+        if len(cluster_values) <= 10:
+            add_features_to_graph(graph, layer - 1, cluster_indices)
+            connect_features_in_graph(graph, layer, cluster_indices, feature, cluster_values, measure)
+
+    del similarities
+
+add_explanations(graph)
+
+
+# %%
+def format_link(text, layer, feature):
+    return f'[{text}](https://www.neuronpedia.org/gpt2-small/{layer}-res-jb/{feature})'
+
+
+# %%
+output = ''
+for node, attr in graph.nodes(data=True):
+    if attr.get('is_downstream', False):
+        preds = list(graph.predecessors(node))
+        
+        layer, feature = graph.nodes[node]['layer'], graph.nodes[node]['feature']
+        output += format_link(f'Feature {node} ({graph.nodes[node]["explanation"]})', layer, feature) + f' has {len(preds)} predecessors:\n\n'
+
+        for measure in measures:
+            output += measure + '\n\n'
+            for pred in preds:
+                layer, feature = graph.nodes[pred]['layer'], graph.nodes[pred]['feature']
+                if measure in [attr['measure'] for attr in graph.get_edge_data(pred, node).values()]:
+                    output += format_link(f'- {pred} ({graph.nodes[pred]["explanation"]})', layer, feature) + '\n\n'
+
+            output += '\n\n'
+
+        output += '\n-----------------------------------\n'
+
+# %%
+console = Console()
+console.print(Markdown(output))
+
+
+# %%
+print('\n'.join(str(edge) for edge in graph.in_edges('3_3463', data=True)))
+
+
+# %%
+with open('../../artefacts/upstream_explanations.md', 'w') as f:
+    f.write(output)
