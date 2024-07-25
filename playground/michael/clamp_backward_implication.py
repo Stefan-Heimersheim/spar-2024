@@ -17,7 +17,7 @@ matrix = load_correlation_data(files)
 matrix = np.nan_to_num(matrix)
 
 # %%
-clamping_threshold = 0.1
+clamping_threshold = 0.2
 clamp_low_values(matrix, clamping_threshold)
 
 # %%
