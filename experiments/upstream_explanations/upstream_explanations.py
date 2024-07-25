@@ -29,20 +29,20 @@ from explanation_helpers import find_high_similarity_cluster, add_features_to_gr
 # Create list of random downstream features
 n_layers = 12
 d_sae = 24576
-number_of_downstream_features = 100
+number_of_downstream_features = 50
 
 layers = np.random.randint(1, n_layers, size=number_of_downstream_features)
 features = np.random.randint(0, d_sae, size=number_of_downstream_features)
 
 downstream_features = list(zip(layers, features))
-print(f'Downstream features: {[f"{layer}_{feature}" for layer, feature in downstream_features]}')
+print(f'Downstream features ({number_of_downstream_features}): {[f"{layer}_{feature}" for layer, feature in downstream_features]}')
 
 
 # %%
 # Loop over all similarity measures and build graph
 artefacts_folder = f'../../artefacts/similarity_measures'
-measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information'] #, 'forward_implication', 'backward_implication']
-clamping_thresholds = [0.1, 0.1, 0.3, 0.1, 0.1]
+measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information', 'forward_implication', 'backward_implication']
+clamping_thresholds = [0.1, 0.1, 0.3, 0.2, 0.2]
 filenames = [f'res_jb_sae_feature_similarity_{measure}_1M_0.0_{clamping_threshold}' for measure, clamping_threshold in zip(measures, clamping_thresholds)]
 
 graph = nx.MultiDiGraph()
@@ -71,7 +71,7 @@ add_explanations(graph)
 def format_neuronpedia_link(text, layer, feature):
     return f'[{text}](https://www.neuronpedia.org/gpt2-small/{layer}-res-jb/{feature})'
 
-# %%
+
 output = '# Upstream explanations\n'
 for node, attr in graph.nodes(data=True):
     if attr.get('is_downstream', False):
