@@ -3,23 +3,39 @@
 
 # %%
 # Imports
-from typing import Tuple
+from abc import ABC, abstractmethod
 from jaxtyping import Float, Int
 from torch import Tensor
 
 import torch
 import einops
 
+# %%
+# Abstract Aggregator class
+class Aggregator(ABC):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0):
+        self.layer = layer
+        self.n_features = n_features
+        self.lower_bound = lower_bound
+
+    @abstractmethod
+    def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
+        pass
+
+    @abstractmethod
+    def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
+        pass
+
 
 # %%
-class PearsonCorrelationAggregator:
-    def __init__(self, layer: int, n_features: Tuple[int, int]):
+class PearsonCorrelationAggregator(Aggregator):
+    def __init__(self, layer: int, n_features: tuple[int, int]):
         """Calculates the pair-wise Pearson correlation of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:
             layer (int): First of the two subsequent layers for similarity computation.
-            n_features (Tuple[int, int]): Number of features to include per layer.
+            n_features (tuple[int, int]): Number of features to include per layer.
         """
         self.layer = layer
         self.n_features = n_features
@@ -77,14 +93,14 @@ class PearsonCorrelationAggregator:
         return correlations
 
 
-class ForwardImplicationAggregator:
-    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound=0.0):
+class ForwardImplicationAggregator(Aggregator):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
         """Calculates the pair-wise forward implication of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:
             layer (int): First of the two subsequent layers for similarity computation.
-            n_features (Tuple[int, int]): Number of features to include per layer.
+            n_features (tuple[int, int]): Number of features to include per layer.
             lower_bound (float): Threshold to distinguish between active and inactive.
         """
         self.layer = layer
@@ -112,14 +128,14 @@ class ForwardImplicationAggregator:
         return self.sums / self.counts
 
 
-class BackwardImplicationAggregator:
-    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound=0.0):
+class BackwardImplicationAggregator(Aggregator):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
         """Calculates the pair-wise backward implication of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:
             layer (int): First of the two subsequent layers for similarity computation.
-            n_features (Tuple[int, int]): Number of features to include per layer.
+            n_features (tuple[int, int]): Number of features to include per layer.
             lower_bound (float): Threshold to distinguish between active and inactive.
         """
         self.layer = layer
@@ -147,14 +163,14 @@ class BackwardImplicationAggregator:
         return self.sums / self.counts
     
 
-class JaccardSimilarityAggregator:
-    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound=0.0):
+class JaccardSimilarityAggregator(Aggregator):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
         """Calculates the pair-wise Jaccard similarity of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:
             layer (int): First of the two subsequent layers for similarity computation.
-            n_features (Tuple[int, int]): Number of features to include per layer.
+            n_features (tuple[int, int]): Number of features to include per layer.
             lower_bound (float): Threshold to distinguish between active and inactive.
         """
         self.layer = layer
@@ -183,37 +199,77 @@ class JaccardSimilarityAggregator:
         return self.sums / self.counts
 
 
-class MutualInformationAggregator:
-    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound=0.0):
+class MutualInformationAggregator(Aggregator):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
         """Calculates the pair-wise (binary) mutual information of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:
             layer (int): First of the two subsequent layers for similarity computation.
-            n_features (Tuple[int, int]): Number of features to include per layer.
+            n_features (tuple[int, int]): Number of features to include per layer.
             lower_bound (float): Threshold to distinguish between active and inactive.
         """
         self.layer = layer
         self.n_features = n_features
         self.lower_bound = lower_bound
 
-        n_features_1, n_features_2 = n_features
+        self.total_count = 0
+        self.count_0_0 = torch.zeros(size=n_features)
+        self.count_0_1 = torch.zeros(size=n_features)
+        self.count_1_0 = torch.zeros(size=n_features)
+
+        
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
-        pass
+        n_features_1, n_features_2 = self.n_features
+
+        # Conceptually
+        activations_1 = activations[self.layer, :n_features_1, :]
+        activations_2 = activations[self.layer + 1, :n_features_2, :]
+
+        active_1 = (activations_1 > self.lower_bound).float()
+        active_2 = (activations_2 > self.lower_bound).float()
+
+        not_1 = 1-active_1
+        not_2 = 1-active_2
+
+        self.count_0_0 += einops.einsum(not_1, not_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
+        self.count_0_1 += einops.einsum(active_1, not_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
+        self.count_1_0 += einops.einsum(not_1, active_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")        
+
+        self.total_count += activations.shape[-1]
+           
+
 
     def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
+
         
         # Calculate mutual information
-        mutual_information = torch.zeros(self.n_features)
-        for pxy, px, py in zip([p00, p01, p10, p11], [px0, px0, px1, px1], [py0, py1, py0, py1]):
-            mutual_information += (pxy * torch.log(pxy / (px * py))).nan_to_num()
+        mutual_information = torch.zeros(self.n_features)        
+
+        p00 = self.count_0_0 / self.total_count
+        p01 = self.count_0_1 / self.total_count
+        p10 = self.count_1_0 / self.total_count
+        p11 = torch.ones(size=self.n_features) - p00 - p01 - p10
+
+        # px0 means P(X=0) (which is = P(x=0,y=0) + P(x=0,y=1))
+        px0 = p00 + p01
+        px1 = p10 + p11
+        py0 = p00 + p10
+        py1 = p10 + p11
+
+        # 4 possible states
+        mutual_information = p00 * torch.log(p00 / (px0 * py0))
+        mutual_information += p01 * torch.log(p01 / (px0 * py1))
+        mutual_information += p10 * torch.log(p10 / (px1 * py0))
+        mutual_information += p11 * torch.log(p11 / (px1 * py1))
 
         return mutual_information
+    
 
 
-class DeadFeaturePairsAggregator:
-    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound: float = 0.0):
+class DeadFeaturePairsAggregator(Aggregator):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0):
         self.layer = layer
         self.n_features = n_features
         self.lower_bound = lower_bound
@@ -235,8 +291,8 @@ class DeadFeaturePairsAggregator:
         return self.sums
     
 
-class DeadFeaturesAggregator:
-    def __init__(self, layer: int, n_features: Tuple[int, int], lower_bound: float = 0.0):
+class DeadFeaturesAggregator(Aggregator):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0):
         self.layer = layer
         self.n_features = n_features
         self.lower_bound = lower_bound
