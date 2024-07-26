@@ -218,8 +218,6 @@ class MutualInformationAggregator(Aggregator):
         self.count_0_1 = torch.zeros(size=n_features)
         self.count_1_0 = torch.zeros(size=n_features)
 
-        
-
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
 
@@ -230,23 +228,16 @@ class MutualInformationAggregator(Aggregator):
         active_1 = (activations_1 > self.lower_bound).float()
         active_2 = (activations_2 > self.lower_bound).float()
 
-        not_1 = 1-active_1
-        not_2 = 1-active_2
+        not_1 = 1 - active_1
+        not_2 = 1 - active_2
 
         self.count_0_0 += einops.einsum(not_1, not_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
-        self.count_0_1 += einops.einsum(active_1, not_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
-        self.count_1_0 += einops.einsum(not_1, active_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")        
+        self.count_0_1 += einops.einsum(not_1, active_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
+        self.count_1_0 += einops.einsum(active_1, not_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")        
 
         self.total_count += activations.shape[-1]
            
-
-
     def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
-
-        
-        # Calculate mutual information
-        mutual_information = torch.zeros(self.n_features)        
-
         p00 = self.count_0_0 / self.total_count
         p01 = self.count_0_1 / self.total_count
         p10 = self.count_1_0 / self.total_count
@@ -256,17 +247,17 @@ class MutualInformationAggregator(Aggregator):
         px0 = p00 + p01
         px1 = p10 + p11
         py0 = p00 + p10
-        py1 = p10 + p11
+        py1 = p01 + p11
 
-        # 4 possible states
-        mutual_information = p00 * torch.log(p00 / (px0 * py0))
-        mutual_information += p01 * torch.log(p01 / (px0 * py1))
-        mutual_information += p10 * torch.log(p10 / (px1 * py0))
-        mutual_information += p11 * torch.log(p11 / (px1 * py1))
+        # Calculate mutual information (4 possible states)
+        mutual_information = torch.zeros(self.n_features)
+        mutual_information += (p00 * torch.log(p00 / (px0 * py0))).nan_to_num()
+        mutual_information += (p01 * torch.log(p01 / (px0 * py1))).nan_to_num()
+        mutual_information += (p10 * torch.log(p10 / (px1 * py0))).nan_to_num()
+        mutual_information += (p11 * torch.log(p11 / (px1 * py1))).nan_to_num()
 
         return mutual_information
     
-
 
 class DeadFeaturePairsAggregator(Aggregator):
     def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0):

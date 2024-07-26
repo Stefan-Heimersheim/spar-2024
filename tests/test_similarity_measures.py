@@ -18,7 +18,7 @@ init()
 
 # %%
 # Define parameters
-n_layers, d_sae, n_tokens = 12, 128, 1024
+n_layers, d_sae, n_tokens = 12, 64, 128
 
 # %%
 # Generate correlated sample data with shape (n_layers, d_sae, n_tokens)
@@ -79,9 +79,9 @@ def manual_mutual(activations, layer, lower_bound=0.0):
 
 def one_dim_forward_implication(A, B):
     count_A_and_B = torch.logical_and(A, B).sum()
-    count_B = torch.sum(B)
+    count_A = torch.sum(A)
 
-    return count_A_and_B / count_B  # can be nan
+    return count_A_and_B / count_A  # can be nan
 
 
 def manual_forward(activations, layer, lower_bound=0.0):
@@ -101,9 +101,9 @@ def manual_forward(activations, layer, lower_bound=0.0):
 
 def one_dim_backward_implication(A, B):
     count_A_and_B = torch.logical_and(A, B).sum()
-    count_A = torch.sum(A)
+    count_B = torch.sum(B)
 
-    return count_A_and_B / count_A  # can be nan
+    return count_A_and_B / count_B  # can be nan
 
 
 def manual_backward(activations, layer, lower_bound=0.0):
@@ -143,9 +143,9 @@ def test_jaccard(activations):
         aggregated_jaccard_similarity = batched_loop(activations, layer, JaccardSimilarityAggregator)
 
         if torch.allclose(manual_jaccard_similarity, aggregated_jaccard_similarity, atol=1e-6):
-            print(f'{Fore.GREEN}Passed Jaccard test for layers {layer}/{layer+1}.{Style.RESET_ALL}')
+            print(f'Passed Jaccard test for layers {layer}/{layer+1}.')
         else:
-            print(f'{Fore.RED}Failed Jaccard test for layers {layer}/{layer+1}!{Style.RESET_ALL}')
+            print(f'Failed Jaccard test for layers {layer}/{layer+1}!')
 
 
 def test_pearson(activations):
@@ -154,9 +154,9 @@ def test_pearson(activations):
         aggregated_pearson_correlation = batched_loop(activations, layer, PearsonCorrelationAggregator)
 
         if torch.allclose(manual_pearson_correlation, aggregated_pearson_correlation, atol=1e-6):
-            print(f'{Fore.GREEN}Passed Pearson test for layers {layer}/{layer+1}.{Style.RESET_ALL}')
+            print(f'Passed Pearson test for layers {layer}/{layer+1}.')
         else:
-            print(f'{Fore.RED}Failed Pearson test for layers {layer}/{layer+1}!{Style.RESET_ALL}')
+            print(f'Failed Pearson test for layers {layer}/{layer+1}!')
 
 
 def test_mutual(activations):
@@ -165,10 +165,10 @@ def test_mutual(activations):
         aggregated_mutual_information = batched_loop(activations, layer, MutualInformationAggregator)
 
         if torch.allclose(manual_mutual_information, aggregated_mutual_information, atol=1e-6):
-            print(f'{Fore.GREEN}Passed Mutual Information test for layers {layer}/{layer+1}.{Style.RESET_ALL}')
+            print(f'Passed Mutual Information test for layers {layer}/{layer+1}.')
         else:
             max_error = (manual_mutual_information - aggregated_mutual_information).max().item()
-            print(f'{Fore.RED}Failed Mutual Information test for layers {layer}/{layer+1} ({max_error})!{Style.RESET_ALL}')
+            print(f'Failed Mutual Information test for layers {layer}/{layer+1} ({max_error})!')
 
 
 def test_forward(activations):
@@ -177,10 +177,10 @@ def test_forward(activations):
         aggregated_forward_implication = batched_loop(activations, layer, ForwardImplicationAggregator)
 
         if torch.allclose(manual_forward_implication, aggregated_forward_implication, atol=1e-6):
-            print(f'{Fore.GREEN}Passed Forward Implication test for layers {layer}/{layer+1}.{Style.RESET_ALL}')
+            print(f'Passed Forward Implication test for layers {layer}/{layer+1}.')
         else:
             max_error = (manual_forward_implication - aggregated_forward_implication).max().item()
-            print(f'{Fore.RED}Failed Forward Implication test for layers {layer}/{layer+1} ({max_error})!{Style.RESET_ALL}')
+            print(f'Failed Forward Implication test for layers {layer}/{layer+1} ({max_error})!')
 
 
 def test_backward(activations):
@@ -189,10 +189,10 @@ def test_backward(activations):
         aggregated_backward_implication = batched_loop(activations, layer, BackwardImplicationAggregator)
 
         if torch.allclose(manual_backward_implication, aggregated_backward_implication, atol=1e-6):
-            print(f'{Fore.GREEN}Passed Backward Implication test for layers {layer}/{layer+1}.{Style.RESET_ALL}')
+            print(f'Passed Backward Implication test for layers {layer}/{layer+1}.')
         else:
             max_error = (manual_backward_implication - aggregated_backward_implication).max().item()
-            print(f'{Fore.RED}Failed Backward Implication test for layers {layer}/{layer+1} ({max_error})!{Style.RESET_ALL}')
+            print(f'Failed Backward Implication test for layers {layer}/{layer+1} ({max_error})!')
 
 
 test_jaccard(activations)
@@ -200,5 +200,3 @@ test_pearson(activations)
 test_mutual(activations)
 test_forward(activations)
 test_backward(activations)
-
-# %%
