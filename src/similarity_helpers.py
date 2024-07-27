@@ -1,17 +1,10 @@
-# Helper function for existing correlation matrices
-#
-# 1. Load correlation matrix files (one per layer pair)
-# 2. Stack layers into one big matrix
-# 3. Cut off values below given threshold
-# 4. Save compressed version as one file
+# Helper functions for existing similarity matrices
 
-# %%
 from typing import List
 import numpy as np
 
 
-# %%
-def load_correlation_data(files: List[str]):
+def load_similarity_data(files: List[str]):
     if len(files) == 1:  # Single file
         data = np.load(files[0])['arr_0']
         
@@ -20,6 +13,7 @@ def load_correlation_data(files: List[str]):
         data = [np.load(file)['arr_0'] for file in files]
 
         return np.stack(data)
+
 
 def clamp_low_values(arr, threshold):
     arr[np.abs(arr) < threshold] = 0
@@ -58,9 +52,31 @@ def get_filename(measure_name: str, activation_threshold: float, clamping_thresh
     if type(n_tokens) is int:
         n_tokens = get_n_token_description(n_tokens)
 
-    filename = f'{sae_name}_feature_similarity_{measure_name}_{n_tokens}_{activation_threshold:.1f}_{clamping_threshold:.1f}'
+    filename = f'{sae_name}_feature_similarity_{measure_name}_{n_tokens}_{activation_threshold:.1f}'
+
+    if clamping_threshold is not None:
+        filename += f'_{clamping_threshold:.1f}'
 
     if first_layer is not None:
-            filename += f'_{first_layer}'
+        filename += f'_{first_layer}'
 
     return filename
+
+
+def clamp_and_combine(measure_name: str, 
+                      clamping_threshold: float, 
+                      n_tokens: int | str, 
+                      base_folder: str = '../../artefacts/similarity_measures', 
+                      activation_threshold: float = 0.0,
+                      n_layers: int = 12,
+                      sae_name: str = 'res_jb_sae'
+                      ) -> None:
+    folder = f'{base_folder}/{measure_name}/.unclamped'
+    files = [f'{folder}/{get_filename(measure_name, activation_threshold, clamping_threshold=None, n_tokens=n_tokens, first_layer=layer, sae_name=sae_name)}.npz' for layer in range(n_layers - 1)]
+    
+    matrix = load_similarity_data(files)
+    matrix = np.nan_to_num(matrix)
+
+    clamp_low_values(matrix, clamping_threshold)
+
+    save_compressed(matrix, f'{base_folder}/{measure_name}/{get_filename(measure_name, activation_threshold, clamping_threshold, n_tokens, sae_name=sae_name)}')

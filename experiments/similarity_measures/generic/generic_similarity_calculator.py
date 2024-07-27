@@ -1,5 +1,7 @@
 # %%
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
 import argparse
 import torch
 import einops
@@ -51,7 +53,7 @@ AggregatorClass = aggregator_map[measure_name]
 
 
 # OPTIONAL: Set environment variable to control visibility of GPUs
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 # OPTIONAL: Check if the correct GPU is visible
 print(torch.cuda.device_count())  # Should print 1
@@ -89,7 +91,7 @@ output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_correlat
 
 d_sae = saes[0].cfg.d_sae
 
-for layer in [10]:  # range(model.cfg.n_layers - 1):
+for layer in [9, 10]:  # range(model.cfg.n_layers - 1):
     aggregator = AggregatorClass(layer, (d_sae, d_sae), lower_bound=activity_lower_bound)
 
     similarities = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
