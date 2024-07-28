@@ -21,7 +21,7 @@ import datetime
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..', 'src'))
 
-from similarity_helpers import load_correlation_data, get_filename
+from similarity_helpers import load_similarity_data, get_filename
 from explanation_helpers import find_high_similarity_cluster, add_features_to_graph, connect_features_in_graph, add_explanations
 
 
@@ -42,7 +42,7 @@ print(f'Downstream features ({number_of_downstream_features}): {[f"{layer}_{feat
 # Loop over all similarity measures and build graph
 artefacts_folder = f'../../artefacts/similarity_measures'
 measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information', 'forward_implication', 'backward_implication']
-clamping_thresholds = [0.1, 0.1, 0.3, 0.2, 0.2]
+clamping_thresholds = [0.1, 0.1, 0.1, 0.2, 0.2]
 filenames = [f'res_jb_sae_feature_similarity_{measure}_1M_0.0_{clamping_threshold}' for measure, clamping_threshold in zip(measures, clamping_thresholds)]
 
 graph = nx.MultiDiGraph()
