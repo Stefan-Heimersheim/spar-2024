@@ -10,6 +10,7 @@ getting lots more ablation scores at once
 """
 
 # %%
+from dataclasses import dataclass
 import argparse
 import torch as t
 import torch
@@ -97,9 +98,13 @@ def ablate_and_reconstruct_with_errors(activations: t.Tensor, hook: HookPoint, f
     sae_feats[:,:,feature_idx] = 0
     return sae.decode(sae_feats) + sae_errors # we assume that the hooks are called in the correct order s.t. these errors correspond to the same tokens
 
+@dataclass
 class Aggregator:
+    num_tokens_per_batch: int
+    first_layer_idx: int
+    feature_idx: int
     # https://stackoverflow.com/questions/5543651/computing-standard-deviation-in-a-stream
-    def __init__(self, num_tokens_per_batch) -> None:
+    def __post_init__(self) -> None:
         """
         f2 = the second feature activation in the subsequent layer
         f2_diffs = difference between f2 when f1 (the feature in the previous layer) is ablated vs unablated
@@ -111,7 +116,6 @@ class Aggregator:
         self.n_total = 0
         self.masked_n = t.zeros(d_sae).to(device) # number of original activations that were > min_activation
         self.min_activation_tol = 1e-15 # TODO: should be diff?
-        self.num_tokens_per_batch = num_tokens_per_batch
         self.mean_diffs = t.zeros(d_sae).to(device)
         self.m2_diffs = t.zeros(d_sae).to(device)
         self.sum_unablated_f2 = t.zeros(d_sae).to(device)
@@ -193,8 +197,8 @@ class Aggregator:
     def save(self, num_batches):
         directory = "artefacts/ablations"
         filename_prefix_parts = [
-            ('layer', first_layer_idx),
-            ('feat', first_layer_feat_idx),
+            ('layer', self.first_layer_idx),
+            ('feat', self.feature_idx),
             ('num_batches', num_batches) 
         ]
         filename_prefix = "__".join(
@@ -209,11 +213,9 @@ class Aggregator:
         filename = f"{directory}/{filename_prefix}.pth"
         t.save(name_to_tensor, filename)
             
-first_layer_feat_idx = 10715
-first_layer_idx = 0
-def create_diff_agg(num_batches):
+def create_diff_agg(first_layer_idx, feature_idx, num_batches):
     data_loader = load_data(num_batches)
-    agg = Aggregator(num_tokens_per_batch=batch_size*context_size)
+    agg = Aggregator(num_tokens_per_batch=batch_size*context_size, first_layer_idx=first_layer_idx, feature_idx=feature_idx)
     print("Collecting diff aggs")
     num_batches_left = num_batches
     with torch.no_grad():
@@ -241,7 +243,7 @@ def create_diff_agg(num_batches):
                 fwd_hooks=[
                     (
                         f"blocks.{first_layer_idx}.hook_resid_pre", 
-                        partial(ablate_and_reconstruct_with_errors, feature_idx=first_layer_feat_idx)
+                        partial(ablate_and_reconstruct_with_errors, feature_idx=feature_idx)
                     ),
                     (
                         f"blocks.{first_layer_idx+1}.hook_resid_pre", 
@@ -288,9 +290,13 @@ def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+    parser.add_argument('-l', type=int, help='first layer idx', required=True)
+    parser.add_argument('-f', type=int, help='sae feature idx (within layer)', required=True)
     parser.add_argument('-n', type=int, help='num of batches', default=32)
     parser.add_argument('--dry-run', type=bool, help='dry run (do not save)', action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
-    diff_agg = create_diff_agg(args.n)
+    diff_agg = create_diff_agg(args.l, args.f, args.n)
     if not args.dry_run:
         diff_agg.save(args.n)
+
+        
