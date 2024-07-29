@@ -7,6 +7,10 @@ import numpy as np
 filename = f"artefacts/similarity_measures/pearson_correlation/res_jb_sae_feature_similarity_pearson_correlation_1M_0.0_0.1.npz"
 with open(filename, 'rb') as data:
     interaction_data = np.load(data)['arr_0']
+
+#
+with open("artefacts/dead_features/res_jb_sae_dead_features_17.5M_0.0.npz", 'rb') as dead_feature_data:
+    dead_features = np.load(dead_feature_data)['arr_0']
 # %%
 def ranked_pairs(matrix: np.ndarray) -> np.ndarray:
     m, _ = matrix.shape
@@ -42,7 +46,7 @@ it activates L0f{4, 800, 12000} > 0 and that's it
 flattened_pairs = interaction_data.reshape(num_layers, -1)[:,:10000000]
 max_indices = np.argsort(flattened_pairs, axis=1)[:, ::-1]
 # Convert flat indices to corresponding (2nd, 3rd) dimension indices
-positions_array = np.array(np.unravel_index(max_indices, interaction_data.shape[1:]))
+positions_array = np.array(np.unravel_index(max_indices, (d_sae, d_sae)))
 
 # print("Max values across the first dimension for each index in the second and third dimensions:\n", max_values)
 print("Positions in the 2nd and 3rd dimensions:\n", positions_array)
