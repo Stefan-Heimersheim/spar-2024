@@ -67,6 +67,7 @@ nx.draw(graph, pos=nx.multipartite_layout(graph, subset_key='layer'), node_size=
 # Add explanations to all graph nodes
 add_explanations(graph)
 
+
 # Create markdown file with structured explanations
 def format_neuronpedia_link(text, layer, feature):
     return f'[{text}](https://www.neuronpedia.org/gpt2-small/{layer}-res-jb/{feature})'
@@ -89,10 +90,10 @@ for node, attr in graph.nodes(data=True):
             else:
                 output += f'### {measure} ({len(predecessors)} predecessors):\n'
                 for predecessor in predecessors:
-                    pred_node, _ = predecessor
+                    pred_node, pred_attr = predecessor
                     layer, feature = graph.nodes[pred_node]['layer'], graph.nodes[pred_node]['feature']
 
-                    output += f'- {pred_node} (' + format_neuronpedia_link(graph.nodes[pred_node]["explanation"], layer, feature) + ')\n'
+                    output += f'- {pred_node} (' + format_neuronpedia_link(graph.nodes[pred_node]["explanation"], layer, feature) + f'): {pred_attr["similarity"]:.3f}\n'
 
 # Save file with current date/time since there are no other identifiers
 with open(f'../../artefacts/upstream_explanations/{datetime.datetime.now().strftime("%Y-%m-%d-%H:%M")}_upstream_explanations_{number_of_downstream_features}.md', 'w') as f:
