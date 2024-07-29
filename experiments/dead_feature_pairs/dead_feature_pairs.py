@@ -19,7 +19,7 @@
 # %%
 import os
 # OPTIONAL: Set environment variable to control visibility of GPUs
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 import torch
 import einops
@@ -68,7 +68,7 @@ tokens = load_data(model, saes[0], dataset_name='NeelNanda/pile-10k', number_of_
 
 # %%
 # For each pair of layers, run model with aggregator and save intermediate results
-measure_name = 'dead_feature_pairs'
+measure_name = 'pair_co_activation'
 batch_size = 32
 hook_name = 'hook_resid_pre'
 
@@ -79,7 +79,7 @@ if not os.path.exists(output_folder):
 n_features_1 = 100
 n_features_2 = 24576
 activity_lower_bound = 0.0
-co_activation_thresholds = [0, 5, 10, 50, 100]
+co_activation_thresholds = [0, 10]
 evaluation_frequency = 16  # Evaluate number of empty-overlap pairs every X batches
 output_filename = f'../../artefacts/{output_folder}/res_jb_sae_{measure_name}_{number_of_token_desc}_{n_features_1}_{n_features_2}_{activity_lower_bound}.npz'
 
@@ -123,17 +123,20 @@ with torch.no_grad():
 
 # %%
 # Load and plot stats
-output_folder = 'dead_feature_pairs'
+output_folder = 'pair_co_activation'
 co_activation_thresholds = [0, 5, 10, 50, 100]
 evaluation_frequency = 16 * 32 * 128
 n_layers = 12
 n_features_1 = 100
 n_features_2 = 24576
 
-dead_feature_pairs = np.load(f'../../artefacts/{output_folder}/res_jb_sae_dead_feature_pairs_17.5M_100_24576_0.0.npz')['arr_0']
+dead_feature_pairs = np.load(f'../../artefacts/{output_folder}/res_jb_sae_{output_folder}_17.5M_100_24576_0.0.npz')['arr_0']
 
 # All features are dead at the start
 dead_feature_pairs = np.concatenate([np.ones((len(co_activation_thresholds), n_layers - 1, 1)) * n_features_1 * n_features_2, dead_feature_pairs], axis=-1)
+
+# For each threshold, add mean over all layers
+dead_feature_pairs = np.concatenate([dead_feature_pairs, dead_feature_pairs.mean(axis=1, keepdims=True)], axis=1)
 
 fig, ax = plt.subplots()
 colormap = LinearSegmentedColormap.from_list('red_to_green', [(1, 0, 0, 0.7), (0, 1, 0, 0.7)], N=n_layers-1)
@@ -145,6 +148,9 @@ n_steps = dead_feature_pairs.shape[-1]
 for layer in range(n_layers-1):
     ax.plot(np.arange(n_steps) * evaluation_frequency, dead_feature_pairs[threshold_index, layer, :] / (n_features_1 * n_features_2), label=f'Layers {layer}/{layer+1}', color=colors[layer])
 
+# Plot mean over all layers
+ax.plot(np.arange(n_steps) * evaluation_frequency, dead_feature_pairs[threshold_index, -1, :] / (n_features_1 * n_features_2), label=f'Mean', color='black', linewidth=2.0)
+
 ax.xaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f'{int(x/1e6)}M'))
 ax.xaxis.set_major_locator(ticker.MultipleLocator(2e6))
 
@@ -154,7 +160,7 @@ ax.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, pos: f'{x * 100:.0f}
 plt.legend()
 plt.xlabel('Number of tokens')
 plt.ylabel(f'Number of feature pairs with <= {co_activation_thresholds[threshold_index]} co-activations')
-plt.title(f'Number of dead SAE feature pairs')
+plt.title(f'Number of SAE feature pairs that rarely co-activate')
 plt.show()
 
 
