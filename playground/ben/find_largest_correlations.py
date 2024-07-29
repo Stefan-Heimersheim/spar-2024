@@ -3,16 +3,10 @@ import torch as t
 import torch
 import numpy as np
 # %%
-# load all of the jaccard data
-num_layers = 2
-all_corrs_list = []
-for first_layer_idx in range(num_layers): # TODO: extend
-    filename = f"../../artefacts/similarity_measures/pearson_correlation/res_jb_sae_feature_correlation_pearson_{first_layer_idx}_{first_layer_idx+1}_1M_0.1.npz"
-    with open(filename, 'rb') as data:
-        interaction_data = np.load(data)['arr_0']
-        all_corrs_list.append(interaction_data)
-
-all_corrs = np.stack(all_corrs_list, axis=0)
+# load all of the pearson data
+filename = f"artefacts/similarity_measures/pearson_correlation/res_jb_sae_feature_similarity_pearson_correlation_1M_0.0_0.1.npz"
+with open(filename, 'rb') as data:
+    interaction_data = np.load(data)['arr_0']
 # %%
 def ranked_pairs(matrix: np.ndarray) -> np.ndarray:
     m, _ = matrix.shape
@@ -33,24 +27,22 @@ def ranked_pairs(matrix: np.ndarray) -> np.ndarray:
     
     return sorted_result
 # %%
-
-# %%
-
+num_layers, d_sae, _ = interaction_data.shape
 """
 1. run a single row through.
 it activates L0f{4, 800, 12000} > 0 and that's it
 
 """
 
-# TODO(IMPORTANT): figure out why all_corrs[0, 14525, 11914] > 1
+# %%
 
 # %%
 # Find the indices of these maximum values
 # TODO: scale this up, remove truncation
-flattened_pairs = all_corrs.reshape(num_layers, -1)[:,:10000000]
+flattened_pairs = interaction_data.reshape(num_layers, -1)[:,:10000000]
 max_indices = np.argsort(flattened_pairs, axis=1)[:, ::-1]
 # Convert flat indices to corresponding (2nd, 3rd) dimension indices
-positions_array = np.array(np.unravel_index(max_indices, all_corrs.shape[1:]))
+positions_array = np.array(np.unravel_index(max_indices, interaction_data.shape[1:]))
 
 # print("Max values across the first dimension for each index in the second and third dimensions:\n", max_values)
 print("Positions in the 2nd and 3rd dimensions:\n", positions_array)
