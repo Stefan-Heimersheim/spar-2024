@@ -16,7 +16,7 @@ data = np.concatenate([np.ones((len(co_activation_thresholds), n_layers - 1, 1))
 data.shape
 
 # %%
-threshold_index = 0
+threshold_index = 2
 layer = 4
 # Layer 4/5 after 2M tokens
 step = int(2 ** 21 / evaluation_frequency)
@@ -32,3 +32,4 @@ print(f'After 10M tokens (step {step}): {data[threshold_index, layer, step] / (n
 step = -1
 
 print(f'After 17.5M tokens (step {step}): {data[threshold_index, layer, step] / (n_features_1 * n_features_2) * 100:.2f}%')
+# %%
