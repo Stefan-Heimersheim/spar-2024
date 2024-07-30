@@ -53,6 +53,28 @@ class AblationAggregator:
            sae_id_to_sae[sae_id] = sae 
         return sae_id_to_sae
 
+    def __reset_vars(self):
+        self.sae_errors = t.empty(self.batch_size, self.context_size, self.model.cfg.d_model)
+        self.second_layer_unablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
+        self.second_layer_ablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
+        self.sum_of_f2_diffs = t.zeros(self.d_sae).to(device)
+        self.sum_of_squared_f2_diffs = t.zeros(self.d_sae).to(device)
+        self.sum_of_squared_masked_f2_diffs= t.zeros(self.d_sae).to(device)
+        self.n_total = 0
+        self.masked_n = t.zeros(self.d_sae).to(device) # number of original activations that were > min_activation
+        self.min_activation_tol = 1e-15 # TODO: should be different?
+        self.mean_diffs = t.zeros(self.d_sae).to(device)
+        self.m2_diffs = t.zeros(self.d_sae).to(device)
+        self.sum_unablated_f2 = t.zeros(self.d_sae).to(device)
+        self.sum_ablated_f2 = t.zeros(self.d_sae).to(device)        
+        # will only contain the means of the activation diffs in which the first layer's activation was > 0
+        self.masked_means = t.zeros(self.d_sae).to(device)
+        self.masked_m2 = t.zeros(self.d_sae).to(device)
+
+        # these get set later
+        self.first_layer_idx = None
+        self.feature_idx = None
+
     # https://stackoverflow.com/questions/5543651/computing-standard-deviation-in-a-stream
     def __post_init__(self) -> None:
         """
@@ -67,38 +89,8 @@ class AblationAggregator:
         self.context_size = pre_0_sae.cfg.context_size
         self.prepend_bos = pre_0_sae.cfg.prepend_bos
         self.d_sae = pre_0_sae.cfg.d_sae
-
-        self.sae_errors = t.empty(self.batch_size, self.context_size, self.model.cfg.d_model)
-        self.second_layer_unablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
-        self.second_layer_ablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
-
-        # these get set later
-        self.first_layer_idx = None
-        self.feature_idx = None
-        
         self.num_tokens_per_batch = self.batch_size*self.context_size
-        self.sum_of_f2_diffs = t.zeros(self.d_sae).to(device)
-        self.sum_of_squared_f2_diffs = t.zeros(self.d_sae).to(device)
-        self.sum_of_squared_masked_f2_diffs= t.zeros(self.d_sae).to(device)
-        self.n_total = 0
-        self.masked_n = t.zeros(self.d_sae).to(device) # number of original activations that were > min_activation
-        self.min_activation_tol = 1e-15 # TODO: should be diff?
-        self.mean_diffs = t.zeros(self.d_sae).to(device)
-        self.m2_diffs = t.zeros(self.d_sae).to(device)
-        self.sum_unablated_f2 = t.zeros(self.d_sae).to(device)
-        self.sum_ablated_f2 = t.zeros(self.d_sae).to(device)
-        
-        # pre-defining the aggregates so that we don't have issues with defining vars outside if __init__
-        self.mse = None
-        self.masked_mse = None
-        self.variances = None
-        self.std_devs = None
-        self.masked_variances = None
-        self.masked_stdevs = None
-
-        # will only contain the means of the activation diffs in which the first layer's activation was > 0
-        self.masked_means = t.zeros(self.d_sae).to(device)
-        self.masked_m2 = t.zeros(self.d_sae).to(device)
+        self.__reset_vars()
 
     def _load_data(self) -> DataLoader:
         dataset = load_dataset(path="NeelNanda/pile-10k", split="train", streaming=False)
@@ -118,6 +110,8 @@ class AblationAggregator:
         first_layer_idx: int,
         feature_idx: int,
     ):
+        # ensures idempotency
+        self.__reset_vars()
         self.first_layer_idx = first_layer_idx
         self.feature_idx= feature_idx
         data_loader = self._load_data()
@@ -134,11 +128,11 @@ class AblationAggregator:
                     fwd_hooks=[
                         (
                             f"blocks.{self.first_layer_idx}.hook_resid_pre", 
-                            self.save_error_terms,
+                            self._save_error_terms,
                         ),
                         (
                             f"blocks.{self.first_layer_idx+1}.hook_resid_pre", 
-                            partial(self.save_second_layer_acts, ablated=False),
+                            partial(self._save_second_layer_acts, ablated=False),
                         )
                     ]
                 )
@@ -148,11 +142,11 @@ class AblationAggregator:
                     fwd_hooks=[
                         (
                             f"blocks.{self.first_layer_idx}.hook_resid_pre", 
-                            partial(self.ablate_and_reconstruct_with_errors, feature_idx=self.feature_idx)
+                            partial(self._ablate_and_reconstruct_with_errors, feature_idx=self.feature_idx)
                         ),
                         (
                             f"blocks.{self.first_layer_idx+1}.hook_resid_pre", 
-                            partial(self.save_second_layer_acts, ablated=True)
+                            partial(self._save_second_layer_acts, ablated=True)
                         )
                     ]
                 )
@@ -160,13 +154,13 @@ class AblationAggregator:
                 num_batches_left -= 1
         self._finalize()
 
-    def save_error_terms(self, activations: t.Tensor, hook: HookPoint) -> t.Tensor:
+    def _save_error_terms(self, activations: t.Tensor, hook: HookPoint) -> t.Tensor:
         sae: SAE = self.sae_id_to_sae[hook.name]
         reconstructed_acts = sae(activations)
         self.sae_errors = activations - reconstructed_acts 
         return activations
 
-    def save_second_layer_acts(self, activations: t.Tensor, hook: HookPoint, ablated: bool):
+    def _save_second_layer_acts(self, activations: t.Tensor, hook: HookPoint, ablated: bool):
         sae: SAE = self.sae_id_to_sae[hook.name]
         sae_feats = sae.encode(activations)
         if ablated:
@@ -175,7 +169,7 @@ class AblationAggregator:
             self.second_layer_unablated_acts = sae_feats
         return activations
 
-    def ablate_and_reconstruct_with_errors(self, activations: t.Tensor, hook: HookPoint, feature_idx: int):
+    def _ablate_and_reconstruct_with_errors(self, activations: t.Tensor, hook: HookPoint, feature_idx: int):
         sae: SAE = self.sae_id_to_sae[hook.name]
         sae_feats = sae.encode(activations)
         sae_feats[:,:,feature_idx] = 0
@@ -242,6 +236,7 @@ class AblationAggregator:
         self.masked_variances = self.masked_m2 / self.masked_n
         self.masked_stdevs = t.sqrt(self.variances)
 
+
     def save(self):
         if self.first_layer_idx is None or self.feature_idx is None:
             raise Exception("need to run aggregate() before save()")
@@ -255,15 +250,24 @@ class AblationAggregator:
         filename_prefix = "__".join(
             ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
         )
-        tensor_keys = [key for key, val in self.__dict__.items() if isinstance(val, t.Tensor)]
-        print("Saving ablation activation aggs")
+        tensor_keys = [
+            key for key, val in self.__dict__.items()
+            if (
+                isinstance(val, t.Tensor)
+                or val in ("first_layer_idx", "feature_idx")
+            )
+        ]
         name_to_tensor = {
             name: getattr(self, name)
             for name in tensor_keys
         }
+        full_data = {
+
+            **name_to_tensor
+        }
         filename = f"{directory}/{filename_prefix}.pth"
+        print(f"Saving to {filename}")
         t.save(name_to_tensor, filename)
-            
 # %%
 def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
     """
@@ -295,7 +299,6 @@ def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
     plt.title(f'Histogram of Bottom {cutoff*100}% of {tensor_desc}')
     plt.show()
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-l', type=int, help='first layer idx', required=True)
@@ -313,5 +316,3 @@ if __name__ == '__main__':
     agg.aggregate()
     if not args.dry_run:
         agg.save()
-
-        
