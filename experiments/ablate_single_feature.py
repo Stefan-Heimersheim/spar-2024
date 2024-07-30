@@ -34,9 +34,7 @@ print(f"Loaded {device=}")
 
 # %%
 @dataclass
-class Aggregator:
-    first_layer_idx: int
-    feature_idx: int
+class AblationAggregator:
     num_batches: int
     batch_size: int
     model: HookedTransformer = HookedTransformer.from_pretrained("gpt2-small", device=device)
@@ -74,6 +72,9 @@ class Aggregator:
         self.second_layer_unablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
         self.second_layer_ablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
 
+        # these get set later
+        self.first_layer_idx = None
+        self.feature_idx = None
         
         self.num_tokens_per_batch = self.batch_size*self.context_size
         self.sum_of_f2_diffs = t.zeros(self.d_sae).to(device)
@@ -112,7 +113,13 @@ class Aggregator:
         tokens = token_dataset['tokens'][:num_of_sentences]
         return DataLoader(tokens, batch_size=self.batch_size, shuffle=False)
 
-    def aggregate(self):
+    def aggregate(
+        self,
+        first_layer_idx: int,
+        feature_idx: int,
+    ):
+        self.first_layer_idx = first_layer_idx
+        self.feature_idx= feature_idx
         data_loader = self._load_data()
         print("Collecting diff aggs")
         num_batches_left = self.num_batches
@@ -235,12 +242,15 @@ class Aggregator:
         self.masked_variances = self.masked_m2 / self.masked_n
         self.masked_stdevs = t.sqrt(self.variances)
 
-    def save(self, num_batches):
+    def save(self):
+        if self.first_layer_idx is None or self.feature_idx is None:
+            raise Exception("need to run aggregate() before save()")
         directory = "artefacts/ablations"
         filename_prefix_parts = [
             ('layer', self.first_layer_idx),
             ('feat', self.feature_idx),
-            ('num_batches', num_batches) 
+            ('num_batches', self.num_batches),
+            ('batch_size', self.batch_size)
         ]
         filename_prefix = "__".join(
             ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
@@ -294,7 +304,7 @@ if __name__ == '__main__':
     parser.add_argument('-b', type=int, help='batch size', default=32)
     parser.add_argument('--dry-run', type=bool, help='dry run (do not save)', action=argparse.BooleanOptionalAction, default=False)
     args = parser.parse_args()
-    agg = Aggregator(
+    agg = AblationAggregator(
         first_layer_idx=args.l,
         feature_idx=args.f,
         num_batches=args.n,
@@ -302,6 +312,6 @@ if __name__ == '__main__':
     )
     agg.aggregate()
     if not args.dry_run:
-        agg.save(args.n)
+        agg.save()
 
         
