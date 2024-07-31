@@ -4,8 +4,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+# %%
 artefacts_folder = f'../../artefacts/similarity_measures'
 d_sae = 24576
+
 
 # %%
 def compare_measures(measure_1, measure_2, layer, number_of_samples, log=False, d_sae=24576):
