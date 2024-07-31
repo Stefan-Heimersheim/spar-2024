@@ -261,10 +261,6 @@ class AblationAggregator:
             name: getattr(self, name)
             for name in tensor_keys
         }
-        full_data = {
-
-            **name_to_tensor
-        }
         filename = f"{directory}/{filename_prefix}.pth"
         print(f"Saving to {filename}")
         t.save(name_to_tensor, filename)
