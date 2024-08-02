@@ -9,7 +9,7 @@ d_sae = 24576
 
 # %%
 def get_prev_layer_feat_idxes():
-    top_corr_flat_idx = np.load("artefacts/ablations/top_1000_pearson_per_layer_flattened_feature_idx.npy")
+    top_corr_flat_idx = np.load("artefacts/sampled_interaction_measures/pearson_correlation/count_1000.npz")
     # for all high-value pearson correlations, loading the first feature from each pair in a (num_layers, num_top_features) matrix
     prev_layer_feat_idxes, _ = (
         np.array([
@@ -43,3 +43,4 @@ if __name__ == '__main__':
     if args.first_layer >= args.last_layer:
         parser.error(f"Argument {args.first_layer=} must be less than {args.last_layer=}")
     main(args)
+# %%
