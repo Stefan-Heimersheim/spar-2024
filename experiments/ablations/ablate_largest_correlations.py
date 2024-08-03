@@ -9,7 +9,7 @@ d_sae = 24576
 
 # %%
 def get_prev_layer_feat_idxes():
-    top_corr_flat_idx = np.load("artefacts/sampled_interaction_measures/pearson_correlation/count_1000.npz")
+    top_corr_flat_idx = np.load("artefacts/sampled_interaction_measures/pearson_correlation/count_1000.npz")['arr_0']
     # for all high-value pearson correlations, loading the first feature from each pair in a (num_layers, num_top_features) matrix
     prev_layer_feat_idxes, _ = (
         np.array([
@@ -36,7 +36,7 @@ if __name__ == '__main__':
     parser.add_argument('--first-layer', type=int, help='first layer idx', default=0)
     parser.add_argument('--last-layer', type=int, help='last layer idx (exclusive)', default=1)
     parser.add_argument('--nb', type=int, help='num of batches', default=2)
-    parser.add_argument('--bs', type=int, help='batch size', default=2)
+    parser.add_argument('--bs', type=int, help='batch size', default=3)
     parser.add_argument('--num-feats', type=int, help='number of features per row, starting from the order in the data file, to ablate', default=1)
     parser.add_argument('--dry-run', type=bool, help='dry run (do not save)', action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
