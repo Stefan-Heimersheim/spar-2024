@@ -25,6 +25,7 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
+# %%
 if t.backends.mps.is_available():
     device = "mps"
 else:
@@ -101,8 +102,8 @@ class AblationAggregator:
             max_length=self.context_size,
             add_bos_token=self.prepend_bos,
         )
-        num_of_sentences = self.batch_size * self.num_batches
-        tokens = token_dataset['tokens'][:num_of_sentences]
+        num_tokens = self.batch_size * self.num_batches
+        tokens = token_dataset['tokens'][:num_tokens]
         return DataLoader(tokens, batch_size=self.batch_size, shuffle=False)
 
     def aggregate(
@@ -261,10 +262,6 @@ class AblationAggregator:
             name: getattr(self, name)
             for name in tensor_keys
         }
-        full_data = {
-
-            **name_to_tensor
-        }
         filename = f"{directory}/{filename_prefix}.pth"
         print(f"Saving to {filename}")
         t.save(name_to_tensor, filename)
@@ -298,21 +295,42 @@ def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
     plt.ylabel('Frequency')
     plt.title(f'Histogram of Bottom {cutoff*100}% of {tensor_desc}')
     plt.show()
+# %%
+
+# %%
+def is_jupyter():
+    try:
+        shell = get_ipython().__class__.__name__
+        return shell == 'ZMQInteractiveShell'
+    except NameError:
+        return False
+    
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-l', type=int, help='first layer idx', required=True)
-    parser.add_argument('-f', type=int, help='sae feature idx (within layer)', required=True)
-    parser.add_argument('-n', type=int, help='num of batches', default=32)
-    parser.add_argument('-b', type=int, help='batch size', default=32)
-    parser.add_argument('--dry-run', type=bool, help='dry run (do not save)', action=argparse.BooleanOptionalAction, default=False)
-    args = parser.parse_args()
+    if not is_jupyter():
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-l', type=int, help='first layer idx', required=8)
+        parser.add_argument('-f', type=int, help='sae feature idx (within layer)', required=2000)
+        parser.add_argument('-n', type=int, help='num of batches', default=2)
+        parser.add_argument('-b', type=int, help='batch size', default=3)
+        parser.add_argument('--dry-run', type=bool, help='dry run (do not save)', action=argparse.BooleanOptionalAction, default=False)
+        args = parser.parse_args()
+    else:
+        @dataclass
+        class Args:
+            n = 2
+            b = 2
+            l = 1
+            f = 2
+        args = Args()
+
     agg = AblationAggregator(
-        first_layer_idx=args.l,
-        feature_idx=args.f,
         num_batches=args.n,
         batch_size=args.b,
     )
-    agg.aggregate()
+    agg.aggregate(
+        first_layer_idx=args.l,
+        feature_idx=args.f,
+    )
     if not args.dry_run:
         agg.save()
