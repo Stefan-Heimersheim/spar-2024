@@ -41,7 +41,7 @@ print(f'Downstream features ({number_of_downstream_features}): {[f"{layer}_{feat
 # %%
 # Loop over all similarity measures and build graph
 artefacts_folder = f'../../artefacts/similarity_measures'
-measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information', 'forward_implication', 'backward_implication']
+measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information', 'sufficiency', 'necessity']
 clamping_thresholds = [0.1, 0.1, 0.1, 0.2, 0.2]
 filenames = [f'res_jb_sae_feature_similarity_{measure}_1M_0.0_{clamping_threshold}' for measure, clamping_threshold in zip(measures, clamping_thresholds)]
 

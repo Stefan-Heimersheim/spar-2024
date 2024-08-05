@@ -33,10 +33,10 @@ def get_explanation(
 
 # %%
 # Load (clamped) similarity matrix
-measure_name = "forward_implication"
+measure_name = "sufficiency"
 REPO_ROOT = os.path.join(os.path.dirname(__file__), "../..")
 folder = f"{REPO_ROOT}/artefacts/similarity_measures/{measure_name}"
-filename = "res_jb_sae_feature_correlation_forward_implication_6_7_1M_0.1"
+filename = "res_jb_sae_feature_similarity_sufficiency_6_7_1M_0.1"
 similarities = np.load(f"{folder}/{filename}.npz")["arr_0"]
 similarities.shape
 

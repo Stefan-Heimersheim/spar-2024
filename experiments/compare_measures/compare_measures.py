@@ -60,8 +60,8 @@ def compare_similarity_measures(measure_1, bin_limits_1, measures_2, bin_limitss
 
 
 # %%
-compare_similarity_measures('pearson_correlation', np.arange(-0.9, 1.0, 0.1), ['jaccard_similarity', 'forward_implication'], [np.arange(0.1, 1.0, 0.1)] * 2, 0, 10000)
+compare_similarity_measures('pearson_correlation', np.arange(-0.9, 1.0, 0.1), ['jaccard_similarity', 'sufficiency'], [np.arange(0.1, 1.0, 0.1)] * 2, 0, 10000)
 
 
 # %%
-compare_similarity_measures('jaccard_similarity', np.arange(0.1, 1.0, 0.1), ['forward_implication', 'backward_implication'], [np.arange(0.1, 1.0, 0.1)] * 2, 0, 10000)
+compare_similarity_measures('jaccard_similarity', np.arange(0.1, 1.0, 0.1), ['sufficiency', 'necessity'], [np.arange(0.1, 1.0, 0.1)] * 2, 0, 10000)

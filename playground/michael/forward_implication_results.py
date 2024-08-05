@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 
 
 # %%
-# Load forward implication results
-folder = '../../artefacts/forward_implication'
+# Load sufficiency results
+folder = '../../artefacts/sufficiency'
 
-file_basename = 'res_jb_sae_feature_correlation_forward_implication_X_Y_1M_0.1.npz'
+file_basename = 'res_jb_sae_feature_correlation_sufficiency_X_Y_1M_0.1.npz'
 layers = list(range(11))
 filenames = [file_basename.replace('X', str(layer)).replace('Y', str(layer+1)) for layer in layers]
 print(filenames)
@@ -39,7 +39,7 @@ for filename in filenames:
 # Plotting the results
 plt.figure(figsize=(10, 6))
 plt.plot(layers, non_zero_percentages, marker='o', linestyle='-', color='b')
-plt.title('Percentage of Non-Zero Elements in Forward Implication Results by Layer Pair')
+plt.title('Percentage of Non-Zero Elements in Sufficiency Results by Layer Pair')
 plt.xlabel('First layer in pair')
 plt.ylabel('% Non-Zero Elements')
 plt.grid(True)

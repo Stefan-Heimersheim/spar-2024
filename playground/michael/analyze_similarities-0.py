@@ -203,7 +203,7 @@ for layer, feature in downstream_features:
 
 # %%
 # Loop over all similarity measures
-measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information'] #, 'forward_implication', 'backward_implication']
+measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information'] #, 'sufficiency', 'necessity']
 clamping_thresholds = [0.1, 0.1, 0.3]
 filenames = [f'res_jb_sae_feature_similarity_{measure}_1M_0.0_{clamping_threshold}' for measure, clamping_threshold in zip(measures, clamping_thresholds)]
 

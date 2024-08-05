@@ -93,9 +93,9 @@ class PearsonCorrelationAggregator(Aggregator):
         return correlations
 
 
-class ForwardImplicationAggregator(Aggregator):
+class SufficiencyAggregator(Aggregator):
     def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
-        """Calculates the pair-wise forward implication of two tensors that are
+        """Calculates the pair-wise sufficiency of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:
@@ -128,9 +128,9 @@ class ForwardImplicationAggregator(Aggregator):
         return self.sums / self.counts
 
 
-class BackwardImplicationAggregator(Aggregator):
+class NecessityAggregator(Aggregator):
     def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
-        """Calculates the pair-wise backward implication of two tensors that are
+        """Calculates the pair-wise necessity of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:

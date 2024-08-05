@@ -30,7 +30,7 @@ model, saes = load_model_and_saes(model_name='gpt2-small', sae_name='gpt2-small-
 tokens = load_data(model, saes[0], dataset_name='NeelNanda/pile-10k', number_of_batches=256)
 
 # %%
-class ForwardImplicationAggregator:
+class SufficiencyAggregator:
     def __init__(self, layer, n_features_1, n_features_2, lower_bound=0.0):
         """Calculates the pair-wise Pearson correlation of two tensors that are
         provided batch-wise. All computations are done element-wise with broadcasting
@@ -61,25 +61,25 @@ class ForwardImplicationAggregator:
 
 # %%
 # For each pair of layers, call run_with_aggregator and save the result
-output_folder = 'forward_implication'
+output_folder = 'sufficiency'
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
 activity_lower_bound = 0.0
 similarity_threshold = 0.1
-output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_correlation_forward_implication_{layer}_{layer+1}_1M_{threshold}.npz'
+output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_correlation_sufficiency_{layer}_{layer+1}_1M_{threshold}.npz'
 
 d_sae = saes[0].cfg.d_sae
 
 for layer in range(model.cfg.n_layers - 1):
-    aggregator = ForwardImplicationAggregator(layer, d_sae, d_sae, lower_bound=activity_lower_bound)
+    aggregator = SufficiencyAggregator(layer, d_sae, d_sae, lower_bound=activity_lower_bound)
 
-    forward_implications = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
+    sufficiency_scores = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
 
-    forward_implications[forward_implications.abs() < similarity_threshold] = 0
-    forward_implications = forward_implications.nan_to_num()
+    sufficiency_scores[sufficiency_scores.abs() < similarity_threshold] = 0
+    sufficiency_scores = sufficiency_scores.nan_to_num()
 
-    np.savez_compressed(output_filename_fn(layer), forward_implications)
+    np.savez_compressed(output_filename_fn(layer), sufficiency_scores)
 
 
 # %%
@@ -111,18 +111,18 @@ f1 = torch.maximum(torch.rand(10, 1000) - 0.9, torch.tensor([0]))
 f2 = torch.maximum(torch.rand(20, 1000) - 0.9, torch.tensor([0]))
 
 true_result = mutual_1(f1, f2)
-print(f'True forward implication: {true_result}')
+print(f'True sufficiency: {true_result}')
 
 batch_size = 100
 loader_1 = DataLoader(f1.movedim(-1, 0), batch_size=batch_size)
 loader_2 = DataLoader(f2.movedim(-1, 0), batch_size=batch_size)
-aggregator = ForwardImplicationAggregator(0, f1.shape[0], f2.shape[0])
+aggregator = SufficiencyAggregator(0, f1.shape[0], f2.shape[0])
 
 for input_1, input_2 in zip(loader_1, loader_2):
     aggregator.process([input_1.movedim(0, -1), input_2.movedim(0, -1)])
 
 our_result = aggregator.finalize()
-print(f'Calculated forward implication: {our_result}')
+print(f'Calculated sufficiency: {our_result}')
 
 # our_result = mutual_2(f1, f2)
 

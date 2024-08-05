@@ -64,5 +64,5 @@ def compare_measures(measure_1, measure_2, layer, number_of_samples, log=False, 
 # %%
 compare_measures('pearson_correlation', 'jaccard_similarity', layer=1, number_of_samples=100000, log=False)
 compare_measures('pearson_correlation', 'mutual_information', layer=1, number_of_samples=100000, log=False)
-compare_measures('pearson_correlation', 'forward_implication', layer=1, number_of_samples=100000, log=False)
-compare_measures('pearson_correlation', 'backward_implication', layer=1, number_of_samples=100000, log=False)
+compare_measures('pearson_correlation', 'sufficiency', layer=1, number_of_samples=100000, log=False)
+compare_measures('pearson_correlation', 'necessity', layer=1, number_of_samples=100000, log=False)
