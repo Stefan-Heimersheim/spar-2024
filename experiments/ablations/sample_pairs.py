@@ -15,7 +15,6 @@ import numpy as np
 from math import prod
 from src.enums import Measure
 import os
-import matplotlib.pyplot as plt
 from dataclasses import dataclass
 from typing import Dict
 @dataclass
@@ -74,7 +73,7 @@ flattened_per_layer_scores = interaction_scores.reshape(num_layers, d_sae**2)
 sorted_flattened_pairs_filename = "artefacts/sampled_interaction_measures/pearson_correlation/sorted_nonzero_flattened_pair_idxes"
 if os.path.exists(f"{sorted_flattened_pairs_filename}.npz"):
     only_nonzero_pair_idxes = np.load(f"{sorted_flattened_pairs_filename}.npz")
-    padded_nonzero_sorted_desc_by_score_per_layer_pair_idxes =convert_only_nonzero_pair_idxes_to_padded_arr(only_nonzero_pair_idxes)
+    padded_nonzero_sorted_desc_by_score_per_layer_pair_idxes = convert_only_nonzero_pair_idxes_to_padded_arr(only_nonzero_pair_idxes)
 else:
     print("Sorting each layer")
     # key line, very slow
@@ -88,90 +87,44 @@ else:
             ]
         for layer_idx in range(num_layers)
     }
+    # saving so that I don't have to sort every time
     np.savez_compressed(sorted_flattened_pairs_filename, only_nonzero_pair_idxes)
-# %%
-"""
-1. sort all pairs in all layers
-2. pick the top 50 pairs in all layers
-3. in each layer, get the distinct first-layer features
-4. for each of those first layer features, find the top second layer feature pairs
-5. look at the histograms and collect the top pairs across each of the first layer pairs...so that I can run the ablations only on those
-
-hmmm...is this too complicated?
-how am I supposed to sample properly...
-alright I guess I'll just try and go for it and see how far I get...
-
-l0f14525 has only 5 nonzero values
-array([11914, 15247, 18290, 22140, 22737])
-[1.0000046, 1.0000031, 1.0000012, 1.0000013, 1.0000039]
-
-okay I see 14525 is showing up 3 times at the top of first_layer_top_feat_idxes
-14525, 14525, 19038,   663, 14525
-so probably no good eh..?
-
-TODO: should I keep these layer 0 features in? or not? I feel like I should skip the first 10? just to be safe??
-
-"""
-
-"""
-Okay I think I want to count up the number of nonzeros for each feature idx...
-
-okay what do I want?
-I want evenly-spaced ranges
-but what do I also want?
-to minimize the amount of ablations that I need to do
-I'm going to save like...freakin...NOT that much data...hmm...
-
-okay what I really need is...what I REALLY need is...
-the distribution of the actual values of the top 100 pairs
-not just...ugh...
-
-what I really care about is the even distribution of the weights
-okay so I need to just save 100 evenly distributed pairs per layer
-and just like...HOPE that they're all from some of the same upstream feature pairs
-and just like...reduce the total number of pairs...and that'll make it fast
-okay I'll make it like..75
-"""
-
-"""
-Maybe I need to save the sorted idxes...let me see how big this would be
-
-"""
-# %%
-per_layer_nonzero = np.count_nonzero(flattened_per_layer_scores, axis=1)
+    padded_nonzero_sorted_desc_by_score_per_layer_pair_idxes = convert_only_nonzero_pair_idxes_to_padded_arr(only_nonzero_pair_idxes)
 # %%
 num_pairs_to_sample_per_layer = 75
-_, curr_num_pairs_per_layer =  sorted_desc_by_score_per_layer_pair_idxes.shape
-# get the nonzero percent on avg across all layers
-
-nonzero_percent = np.count_nonzero(flattened_per_layer_scores) / prod(flattened_per_layer_scores.shape)
-
-# try to only sample from the nonzero entries by having the same lower bound idx across all layers
-# since they're sorted in descending order by score, this'll be the right bound
-last_non_zero_idx = int(nonzero_percent * curr_num_pairs_per_layer)
-assert last_non_zero_idx >= 1, "Not enough nonzero scores. Loosen the truncation"
-step_size = last_non_zero_idx // num_pairs_to_sample
-evenly_spaced_by_score_idxes = sorted_desc_by_score_per_layer_pair_idxes[:, :last_non_zero_idx:step_size]
-# %%
+step_sizes = per_layer_nonzero // num_pairs_to_sample_per_layer
+assert min(step_sizes) > 0, "count_nonzero < num_samples"
+end_idxes = step_sizes * num_pairs_to_sample_per_layer
 # getting evenly spaced samples, as per https://docs.google.com/document/d/1nTVtRB9qgXsNb0NtERamyvi8a9J8MH1Q2RH17PR3iDo/edit#bookmark=id.nd6kw9yrxctg
-
-output_filename = f"artefacts/sampled_interaction_measures/{args.measure.value}/count_{num_pairs_to_sample}" 
-
-if args.save:
-    print(f"Saving sampled pairs per layer")
-    np.save(
-        output_filename,
-        sorted_desc_by_score_per_layer_pair_idxes[:, lower_bound_idx::step_size]
-    )
+evenly_spaced_sampled_pair_idxes = np.array(
+    [
+        padded_nonzero_sorted_desc_by_score_per_layer_pair_idxes[layer, :end:step]
+        for layer, (end, step) in enumerate(zip(end_idxes, step_sizes))
+    ],
+    dtype=int
+)
 # %%
-"""okay so..
-I need to figure out...how to evenly sample...
-the issue is that they're going to be heavy tailed.
-okay let me think about how to do this.
-I think...it's just a matter of
-we have n values
-and then... k of them are 0
-so we want to only look at (n-k) and sample across those
-so i want to do nonzero counts of each layer
-and then sample based on that
-"""
+prev_layer_feat_idx_arr = []
+next_layer_feat_idx_arr = []
+unflattened_pair_arr = []
+for layer_idx in range(num_layers):
+    unflattened_pair_arr.append(
+        np.array(
+            np.unravel_index(evenly_spaced_sampled_pair_idxes[layer_idx], (d_sae, d_sae))
+        ).T
+    )
+unflattened_pairs = np.array(unflattened_pair_arr)
+
+# %%
+output_filename = f"artefacts/sampled_interaction_measures/{args.measure.value}/count_{num_pairs_to_sample_per_layer}" 
+if args.save:
+    print(
+        """
+        Saving sampled pairs per layer: (num_layers, num_feature_pairs, layer_idx_of_feat).
+        data[1][32][0] = 42, data[1][32][1] = 8323
+        across all the pairs of features where the first feature comes from layer 1
+        the 32 percentile feature pair
+        is Layer 1 SAE feat 42, Layer 2 SAE feature 8323
+        """
+    )
+    np.savez(output_filename, unflattened_pairs)
