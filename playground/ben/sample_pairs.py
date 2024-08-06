@@ -49,8 +49,8 @@ num_layers, d_sae, _ = interaction_scores.shape
 
 # %%
 flattened_per_layer_scores = interaction_scores.reshape(num_layers, d_sae**2)
-if args.truncate:
-    flattened_per_layer_scores = flattened_per_layer_scores[:,:10000000]
+# if args.truncate:
+#     flattened_per_layer_scores = flattened_per_layer_scores[:,:10000000]
 
 # key line, very slow
 print("Sorting each layer")
@@ -63,6 +63,7 @@ layer_indices = np.arange(num_layers)[:, np.newaxis]
 num_pairs_to_sample = 1000
 _, curr_num_pairs_per_layer =  sorted_desc_by_score_per_layer_pair_idxes.shape
 # get the nonzero percent on avg across all layers
+
 nonzero_percent = np.count_nonzero(flattened_per_layer_scores) / prod(flattened_per_layer_scores.shape)
 
 # try to only sample from the nonzero entries by having the same lower bound idx across all layers
@@ -70,7 +71,6 @@ nonzero_percent = np.count_nonzero(flattened_per_layer_scores) / prod(flattened_
 last_non_zero_idx = int(nonzero_percent * curr_num_pairs_per_layer)
 assert last_non_zero_idx >= 1, "Not enough nonzero scores. Loosen the truncation"
 step_size = last_non_zero_idx // num_pairs_to_sample
-
 evenly_spaced_by_score_idxes = sorted_desc_by_score_per_layer_pair_idxes[:, :last_non_zero_idx:step_size]
 # %%
 # getting evenly spaced samples, as per https://docs.google.com/document/d/1nTVtRB9qgXsNb0NtERamyvi8a9J8MH1Q2RH17PR3iDo/edit#bookmark=id.nd6kw9yrxctg

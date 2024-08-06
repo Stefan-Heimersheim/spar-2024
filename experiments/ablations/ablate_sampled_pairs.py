@@ -26,11 +26,13 @@ def get_prev_layer_feat_idxes(measure: Measure):
 # %%
 def main(args: argparse.Namespace):
     prev_layer_feat_idxes = get_prev_layer_feat_idxes(args.measure)
+    # ablate
     diff_agg = AblationAggregator(num_batches=args.nb, batch_size=args.bs)
+    # collect for top 100 and random 100 (which we assume will be low, make sure to dedupe)
     for layer_idx in range(args.first_layer, args.last_layer):
         for feat_idx_idx in range(args.num_feats):
             feat_idx = prev_layer_feat_idxes[layer_idx][feat_idx_idx]
-            diff_agg.aggregate(first_layer_idx=layer_idx, feature_idx=feat_idx)
+            diff_agg.aggregate(first_layer_idx=layer_idx, first_feature_idx=feat_idx)
             if not args.dry_run:
                 diff_agg.save() 
         

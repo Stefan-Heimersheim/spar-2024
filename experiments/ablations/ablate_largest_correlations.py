@@ -27,7 +27,7 @@ def main(args: argparse.Namespace):
     for layer_idx in range(args.first_layer, args.last_layer):
         for feat_idx_idx in range(args.num_feats):
             feat_idx = prev_layer_feat_idxes[layer_idx][feat_idx_idx]
-            diff_agg.aggregate(first_layer_idx=layer_idx, feature_idx=feat_idx)
+            diff_agg.aggregate(first_layer_idx=layer_idx, first_feature_idx=feat_idx)
             if not args.dry_run:
                 diff_agg.save() 
         

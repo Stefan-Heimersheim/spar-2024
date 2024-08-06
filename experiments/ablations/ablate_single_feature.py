@@ -12,6 +12,7 @@ getting lots more ablation scores at once
 # %%
 from dataclasses import dataclass
 import argparse
+from typing import List
 import torch as t
 import torch
 import typing
@@ -109,12 +110,13 @@ class AblationAggregator:
     def aggregate(
         self,
         first_layer_idx: int,
-        feature_idx: int,
+        first_feature_idx: int,
+        second_feature_idxes: List[int],
     ):
         # ensures idempotency
         self.__reset_vars()
         self.first_layer_idx = first_layer_idx
-        self.feature_idx= feature_idx
+        self.feature_idx= first_feature_idx
         data_loader = self._load_data()
         print("Collecting diff aggs")
         num_batches_left = self.num_batches
@@ -330,7 +332,7 @@ if __name__ == '__main__':
     )
     agg.aggregate(
         first_layer_idx=args.l,
-        feature_idx=args.f,
+        first_feature_idx=args.f,
     )
     if not args.dry_run:
         agg.save()
