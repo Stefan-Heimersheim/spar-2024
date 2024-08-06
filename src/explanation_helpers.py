@@ -53,18 +53,10 @@ def get_explanation(layer, feature, model_name='gpt2-small', sae_name='res-jb') 
     return explanation
 
 
-def add_explanations(graph: nx.DiGraph) -> None:
+def add_explanations(graph: nx.DiGraph, max_workers: int = 5) -> None:
     """Fetches all Neuronpedia explanations for a given graph of features.
     """
-    # progress_bar = tqdm(graph.nodes(data=True), desc='Adding explanations from Neuronpedia')
-    # for node, attr in progress_bar:
-    #     layer, feature, explanation = attr['layer'], attr['feature'], attr.get('explanation', None)
-        
-    #     # Only request and add explanation if there is none yet
-    #     if explanation is None:
-    #         graph.nodes[node]['explanation'] = get_explanation(layer, feature) 
-    # 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         future_to_data = {executor.submit(get_explanation, attr['layer'], attr['feature']): node for node, attr in graph.nodes(data=True)}
         for future in tqdm(concurrent.futures.as_completed(future_to_data)):
             node = future_to_data[future]

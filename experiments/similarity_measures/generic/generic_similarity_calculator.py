@@ -13,8 +13,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../..', 'src'))
 from pipeline_helpers import load_model_and_saes, load_data, run_with_aggregator
 from similarity_measures import (
     PearsonCorrelationAggregator,
-    ForwardImplicationAggregator,
-    BackwardImplicationAggregator,
+    SufficiencyAggregator,
+    NecessityAggregator,
     JaccardSimilarityAggregator,
     MutualInformationAggregator
 )
@@ -29,8 +29,8 @@ args = parser.parse_args()
 # Mapping from argument value to corresponding class
 aggregator_map = {
     'pearson': PearsonCorrelationAggregator,
-    'forward_implication': ForwardImplicationAggregator,
-    'backward_implication': BackwardImplicationAggregator,
+    'sufficiency': SufficiencyAggregator,
+    'necessity': NecessityAggregator,
     'jaccard_similarity': JaccardSimilarityAggregator,
     'mutual_information': MutualInformationAggregator
 }

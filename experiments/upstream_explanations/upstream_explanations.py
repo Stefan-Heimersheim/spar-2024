@@ -29,7 +29,7 @@ from explanation_helpers import find_high_similarity_cluster, add_features_to_gr
 # Create list of random downstream features
 n_layers = 12
 d_sae = 24576
-number_of_downstream_features = 50
+number_of_downstream_features = 5
 
 layers = np.random.randint(1, n_layers, size=number_of_downstream_features)
 features = np.random.randint(0, d_sae, size=number_of_downstream_features)
@@ -41,7 +41,7 @@ print(f'Downstream features ({number_of_downstream_features}): {[f"{layer}_{feat
 # %%
 # Loop over all similarity measures and build graph
 artefacts_folder = f'../../artefacts/similarity_measures'
-measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information', 'forward_implication', 'backward_implication']
+measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information'] # , 'sufficiency', 'necessity']
 clamping_thresholds = [0.1, 0.1, 0.1, 0.2, 0.2]
 filenames = [f'res_jb_sae_feature_similarity_{measure}_1M_0.0_{clamping_threshold}' for measure, clamping_threshold in zip(measures, clamping_thresholds)]
 
@@ -98,3 +98,20 @@ for node, attr in graph.nodes(data=True):
 # Save file with current date/time since there are no other identifiers
 with open(f'../../artefacts/upstream_explanations/{datetime.datetime.now().strftime("%Y-%m-%d-%H:%M")}_upstream_explanations_{number_of_downstream_features}.md', 'w') as f:
     f.write(output)
+
+
+# %%
+# Save graph to file
+import json
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.float32):
+            return float(obj)
+        # Add more conditions here for other numpy types, if needed
+        return super(NumpyEncoder, self).default(obj)
+
+with open('../../artefacts/upstream_explanations/sample_graph.json', 'w') as f:
+    json.dump(nx.node_link_data(graph), f, cls=NumpyEncoder)
