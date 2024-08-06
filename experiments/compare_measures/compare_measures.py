@@ -60,7 +60,7 @@ def compare_similarity_measures(measure_1, bin_limits_1, measures_2, bin_limitss
 
 
 # %%
-compare_similarity_measures('pearson_correlation', np.arange(-0.9, 1.0, 0.1), ['jaccard_similarity', 'sufficiency'], [np.arange(0.1, 1.0, 0.1)] * 2, 0, 10000)
+compare_similarity_measures('pearson_correlation', np.arange(-0.95, 1.0, 0.05), ['jaccard_similarity', 'sufficiency'], [np.arange(0.05, 1.0, 0.05)] * 2, 0, 10000)
 
 
 # %%
