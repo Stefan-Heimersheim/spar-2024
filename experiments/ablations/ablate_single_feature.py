@@ -15,6 +15,7 @@ import argparse
 from typing import List
 import torch as t
 import torch
+import numpy as np
 import typing
 from sae_lens import SAE
 from transformer_lens import HookedTransformer
@@ -25,6 +26,7 @@ from transformer_lens.utils import tokenize_and_concatenate
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+from src import D_SAE
 
 # %%
 if t.backends.mps.is_available():
@@ -32,7 +34,6 @@ if t.backends.mps.is_available():
 else:
     device = "cuda" if t.cuda.is_available() else "cpu"
 print(f"Loaded {device=}")
-
 
 # %%
 @dataclass
@@ -74,8 +75,8 @@ class AblationAggregator:
         self.masked_m2 = t.zeros(self.d_sae).to(device)
 
         # these get set later
-        self.first_layer_idx = None
-        self.feature_idx = None
+        self.prev_layer_idx = None
+        self.prev_feat_idx = None
 
     # https://stackoverflow.com/questions/5543651/computing-standard-deviation-in-a-stream
     def __post_init__(self) -> None:
@@ -109,14 +110,13 @@ class AblationAggregator:
 
     def aggregate(
         self,
-        first_layer_idx: int,
-        first_feature_idx: int,
-        second_feature_idxes: List[int],
+        prev_layer_idx: int,
+        prev_feat_idx: int,
     ):
         # ensures idempotency
         self.__reset_vars()
-        self.first_layer_idx = first_layer_idx
-        self.feature_idx= first_feature_idx
+        self.prev_layer_idx = prev_layer_idx
+        self.prev_feat_idx= prev_feat_idx
         data_loader = self._load_data()
         print("Collecting diff aggs")
         num_batches_left = self.num_batches
@@ -130,11 +130,11 @@ class AblationAggregator:
                     batch_tokens,
                     fwd_hooks=[
                         (
-                            f"blocks.{self.first_layer_idx}.hook_resid_pre", 
+                            f"blocks.{self.prev_layer_idx}.hook_resid_pre", 
                             self._save_error_terms,
                         ),
                         (
-                            f"blocks.{self.first_layer_idx+1}.hook_resid_pre", 
+                            f"blocks.{self.prev_layer_idx+1}.hook_resid_pre", 
                             partial(self._save_second_layer_acts, ablated=False),
                         )
                     ]
@@ -144,11 +144,11 @@ class AblationAggregator:
                     batch_tokens,
                     fwd_hooks=[
                         (
-                            f"blocks.{self.first_layer_idx}.hook_resid_pre", 
-                            partial(self._ablate_and_reconstruct_with_errors, feature_idx=self.feature_idx)
+                            f"blocks.{self.prev_layer_idx}.hook_resid_pre", 
+                            partial(self._ablate_and_reconstruct_with_errors, feature_idx=self.prev_feat_idx)
                         ),
                         (
-                            f"blocks.{self.first_layer_idx+1}.hook_resid_pre", 
+                            f"blocks.{self.prev_layer_idx+1}.hook_resid_pre", 
                             partial(self._save_second_layer_acts, ablated=True)
                         )
                     ]
@@ -240,64 +240,40 @@ class AblationAggregator:
         self.masked_stdevs = t.sqrt(self.variances)
 
 
-    def save(self):
-        if self.first_layer_idx is None or self.feature_idx is None:
+    def save(self, next_feature_idxes: List[int]):
+        if self.prev_layer_idx is None or self.prev_feat_idx is None:
             raise Exception("need to run aggregate() before save()")
         directory = "artefacts/ablations"
         filename_prefix_parts = [
-            ('layer', self.first_layer_idx),
-            ('feat', self.feature_idx),
+            ('layer', self.prev_layer_idx),
+            ('prev_feat', self.prev_feat_idx),
             ('num_batches', self.num_batches),
-            ('batch_size', self.batch_size)
+            ('batch_size', self.batch_size),
+            ('next_feats', '-'.join([str(next_feat) for next_feat in next_feature_idxes]))
         ]
         filename_prefix = "__".join(
-            ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
+            [
+                "_".join([attr_name, str(attr_value)])
+                for attr_name, attr_value in filename_prefix_parts
+            ]
         )
         tensor_keys = [
             key for key, val in self.__dict__.items()
             if (
                 isinstance(val, t.Tensor)
-                or val in ("first_layer_idx", "feature_idx")
+                and val.shape == (D_SAE,)
             )
         ]
-        name_to_tensor = {
-            name: getattr(self, name)
+        next_feat_idxes_arr = np.array(next_feature_idxes)
+        # only save the next features that matter for this prev feature...not all 24k
+        # the information about what these correspond to will be stored in the filename
+        name_to_numpy = {
+            name: getattr(self, name)[next_feat_idxes_arr].cpu().numpy()
             for name in tensor_keys
         }
-        filename = f"{directory}/{filename_prefix}.pth"
-        print(f"Saving to {filename}")
-        t.save(name_to_tensor, filename)
-# %%
-def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
-    """
-    Plots a histogram of the bottom 99% of elements in a PyTorch tensor.
-    
-    Parameters:
-    tensor (torch.Tensor): The input tensor.
-    bins (int): The number of bins for the histogram.
-    """
-    # Compute the 99th percentile value
-    percentile_value = torch.quantile(tensor, cutoff)
-    
-    # Filter out the top 1% of values
-    filtered_tensor = tensor[tensor <= percentile_value]
-    
-    # Compute the histogram
-    hist = torch.histc(filtered_tensor, bins=bins)
-    
-    # Calculate bin edges
-    min_value = torch.min(filtered_tensor)
-    max_value = torch.max(filtered_tensor)
-    bin_edges = torch.linspace(min_value, max_value, steps=bins + 1)
-    
-    # Plotting
-    plt.figure(figsize=(10, 6))
-    plt.bar(bin_edges[:-1].numpy(), hist.numpy(), width=(max_value - min_value) / bins)
-    plt.xlabel('Value')
-    plt.ylabel('Frequency')
-    plt.title(f'Histogram of Bottom {cutoff*100}% of {tensor_desc}')
-    plt.show()
-# %%
+        filename = f"{directory}/{filename_prefix}"
+        print(f"Saving to {filename}.npz")
+        np.savez(filename, **name_to_numpy)
 
 # %%
 def is_jupyter():
@@ -315,6 +291,7 @@ if __name__ == '__main__':
         parser.add_argument('-f', type=int, help='sae feature idx (within layer)', required=2000)
         parser.add_argument('-n', type=int, help='num of batches', default=2)
         parser.add_argument('-b', type=int, help='batch size', default=3)
+        parser.add_argument('-nf', type=int, help='next feature idxes', nargs='+', default=[2, 10])
         parser.add_argument('--dry-run', type=bool, help='dry run (do not save)', action=argparse.BooleanOptionalAction, default=False)
         args = parser.parse_args()
     else:
@@ -324,6 +301,8 @@ if __name__ == '__main__':
             b = 2
             l = 1
             f = 2
+            nf = [2, 10]
+            dry_run = False
         args = Args()
 
     agg = AblationAggregator(
@@ -331,8 +310,9 @@ if __name__ == '__main__':
         batch_size=args.b,
     )
     agg.aggregate(
-        first_layer_idx=args.l,
-        first_feature_idx=args.f,
+        prev_layer_idx=args.l,
+        prev_feat_idx=args.f,
     )
     if not args.dry_run:
-        agg.save()
+        agg.save(args.nf)
+# %%
