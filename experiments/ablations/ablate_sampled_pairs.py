@@ -10,25 +10,29 @@ from dataclasses import dataclass
 def get_correlations_idxes(measure: Measure):
     return np.load(f"artefacts/sampled_interaction_measures/{measure.value}/count_75.npz")['arr_0']
 # %%
-
-# %%
 @dataclass
 class Args:
     measure = Measure.pearson
-    nb = 2
-    bs = 2
-    first_layer = 1
+    nb = 4
+    bs = 128
+    first_layer = 0
     last_layer = 2
 # TODO: rename
 args = Args()
 diff_agg = AblationAggregator(num_batches=2, batch_size=args.bs)
-corr_idxes = get_correlations_idxes(args)
+corr_idxes = get_correlations_idxes(args.measure)
 for layer_idx in range(args.first_layer, args.last_layer):
     prev_feat_to_next_feats = defaultdict(list) 
     for prev_feat, next_feat in corr_idxes[layer_idx, :, :]:
         prev_feat_to_next_feats[prev_feat].append(next_feat)
-    diff_agg.aggregate
-
+    for prev_feat, next_feats in prev_feat_to_next_feats.items():
+        diff_agg.aggregate(
+            prev_layer_idx=layer_idx,
+            prev_feat_idx=prev_feat,
+        )
+        masked_means = diff_agg.masked_means
+        diff_agg.save(next_feature_idxes=next_feats)
+        break
 # %%
 def main(args: argparse.Namespace):
     corr_idxes = get_correlations_idxes(args.measure)
