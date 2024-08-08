@@ -14,12 +14,11 @@ from collections import Counter
 import networkx as nx
 from scipy.cluster.hierarchy import fcluster
 import matplotlib.pyplot as plt
+import pickle
+from pathlib import Path
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..', 'src'))
 
-from pipeline_helpers import load_model_and_saes, load_data
-from similarity_helpers import clamp_low_values, save_compressed, load_similarity_data
-from explanation_helpers import add_explanations
 from visualization import show_explanation_graph
 
 # %%
@@ -37,7 +36,12 @@ print(f"Device: {device}")
 
 
 # %%
-similarities = np.load('../../../artefacts/similarity_measures/pearson_correlation/res_jb_sae_feature_similarity_pearson_correlation_1M_0.0_0.1.npz')['arr_0']
+measure_name = 'pearson_correlation'
+sae_name = 'res_jb_sae'
+
+similarities = np.load(f'../../../artefacts/similarity_measures/{measure_name}/{sae_name}_feature_similarity_{measure_name}_1M_0.0_0.1.npz')['arr_0']
+with open(f'../../../artefacts/explanations/{sae_name}_explanations.pkl', 'rb') as f:
+    explanations = pickle.load(f)
 
 
 # %%
@@ -82,12 +86,12 @@ def fast_pairwise_distances_with_progress(paths):
 distances = fast_pairwise_distances_with_progress(paths)
 
 # Perform hierarchical clustering
+print('Computing clustering hierarchy...', end='')
 linkage_matrix = linkage(squareform(distances), method='average')
-
-
+print('done.')
 
 # %%
-# See how the number of clusters changes with the distance parameter
+# Show how the number of clusters changes with the distance parameter
 plt.plot([fcluster(linkage_matrix, t=t, criterion='distance').max() for t in range(15)])
 plt.xlabel('Maximum cluster distance')
 plt.ylabel('Number of clusters')
@@ -109,6 +113,10 @@ print(f'{len(reasonable_size_clusters)=}')
 
 
 # %%
+def add_explanations(graph):
+    for node, attr in graph.nodes(data=True):
+        graph.nodes[node]['explanation'] = explanations[attr['layer']][attr['feature']]
+
 def show_cluster(paths, cluster_path_indices, show):
     cluster_paths = paths[cluster_path_indices]
 
@@ -122,11 +130,15 @@ def show_cluster(paths, cluster_path_indices, show):
 
 
 # %%
-for i in range(10):
+folder = '../../../artefacts/path_clusters'
+Path(folder).mkdir(parents=True, exist_ok=True)
+
+for i in range(25):
     cluster_path_indices = np.argwhere(clusters == reasonable_size_clusters[i]).flatten()
     fig = show_cluster(paths, cluster_path_indices, show=False)
-    fig.update_layout(title=f'Cluster {i} ({len(cluster_path_indices)} paths)')
+    fig.update_layout(title=f'[{t=}, {lower_bound=}, {upper_bound=}] Cluster {i} ({len(cluster_path_indices)} paths)')
+    fig.show()
 
+    fig.write_html(f'{folder}/{sae_name}_{measure_name}_path_cluster_{t}_{lower_bound}_{upper_bound}_{i}.html')
 
 # %%
-fig.write_html('plot.html')
