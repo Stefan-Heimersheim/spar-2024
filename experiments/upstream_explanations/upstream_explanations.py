@@ -29,7 +29,7 @@ from explanation_helpers import find_high_similarity_cluster, add_features_to_gr
 # Create list of random downstream features
 n_layers = 12
 d_sae = 24576
-number_of_downstream_features = 5
+number_of_downstream_features = 500
 
 layers = np.random.randint(1, n_layers, size=number_of_downstream_features)
 features = np.random.randint(0, d_sae, size=number_of_downstream_features)

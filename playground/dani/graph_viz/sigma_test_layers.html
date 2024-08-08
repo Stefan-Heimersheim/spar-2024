@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sigma.js Graph Visualization</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/2.4.0/sigma.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/graphology/0.25.4/graphology.umd.min.js"></script>
+  <style>
+    #sigma-container {
+      width: 100%;
+      height: 90vh;
+      margin: 0;
+      padding: 0;
+    }
+    #log {
+      height: 10vh;
+      overflow-y: auto;
+      border-top: 1px solid #ccc;
+      padding: 10px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <div id="sigma-container"></div>
+  <div id="log"></div>
+  <script>
+    function log(message) {
+      console.log(message);
+      document.getElementById('log').innerHTML += message + '<br>';
+    }
+
+    log('Script started');
+
+    fetch('sample_graph.json')
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+        log('JSON fetched');
+        return response.json();
+      })
+      .then(data => {
+        log('JSON parsed');
+        log('Nodes: ' + data.nodes.length + ', Edges: ' + data.links.length);
+
+        const graph = new graphology.Graph({multi: true});
+
+        // Sort nodes by layer and feature
+        const nodes = data.nodes.sort((a, b) => {
+          if (a.layer === b.layer) {
+            return a.feature - b.feature;
+          }
+          return a.layer - b.layer;
+        });
+
+        // Group nodes by layer and assign positions
+        const layerSpacing = 800;
+        const nodeSpacing = 50;
+        const layerPositions = {};
+
+        nodes.forEach(node => {
+          if (!layerPositions[node.layer]) {
+            layerPositions[node.layer] = 0;
+          }
+          graph.addNode(node.id, {
+            x: layerPositions[node.layer],
+            y: node.layer * layerSpacing,
+            size: 5,
+            label: node.id
+          });
+          layerPositions[node.layer] += nodeSpacing;
+        });
+
+        const existingEdges = new Set();
+        data.links.forEach((link, i) => {
+            const edgeKey = `${link.source}-${link.target}`;
+            if (!existingEdges.has(edgeKey)) {
+                graph.addEdge(link.source, link.target, {
+                    id: `e${i}`,
+                    size: 4*link.similarity, // Map similarity to edge size
+                    label: `${link.measure}: ${link.similarity.toFixed(2)}`,
+                });
+            existingEdges.add(edgeKey);
+            }
+        });
+
+        log('Graph data prepared');
+
+        const container = document.getElementById('sigma-container');
+        log('Container found: ' + (container !== null));
+
+        try {
+          const sigmaInstance = new Sigma(graph, container, {
+            renderEdgeLabels: true,
+          });
+          log('Sigma renderer created');
+        } catch (error) {
+          log('Error creating renderer: ' + error.message);
+        }
+      })
+      .catch(error => log('Error: ' + error.message));
+  </script>
+</body>
+</html>

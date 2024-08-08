@@ -12,8 +12,10 @@ getting lots more ablation scores at once
 # %%
 from dataclasses import dataclass
 import argparse
+from typing import List, Dict
 import torch as t
 import torch
+import numpy as np
 import typing
 from sae_lens import SAE
 from transformer_lens import HookedTransformer
@@ -24,6 +26,7 @@ from transformer_lens.utils import tokenize_and_concatenate
 from datasets import load_dataset
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+from src import D_SAE
 
 # %%
 if t.backends.mps.is_available():
@@ -32,13 +35,13 @@ else:
     device = "cuda" if t.cuda.is_available() else "cpu"
 print(f"Loaded {device=}")
 
-
 # %%
 @dataclass
 class AblationAggregator:
     num_batches: int
     batch_size: int
     model: HookedTransformer = HookedTransformer.from_pretrained("gpt2-small", device=device)
+    max_sae_acts = np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']
 
     def create_id_to_sae(self) -> typing.Dict[str, SAE]:
         print("Loading SAEs")
@@ -56,14 +59,13 @@ class AblationAggregator:
 
     def __reset_vars(self):
         self.sae_errors = t.empty(self.batch_size, self.context_size, self.model.cfg.d_model)
-        self.second_layer_unablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
-        self.second_layer_ablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
+        self.next_layer_unablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
+        self.next_layer_ablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
         self.sum_of_f2_diffs = t.zeros(self.d_sae).to(device)
         self.sum_of_squared_f2_diffs = t.zeros(self.d_sae).to(device)
         self.sum_of_squared_masked_f2_diffs= t.zeros(self.d_sae).to(device)
         self.n_total = 0
         self.masked_n = t.zeros(self.d_sae).to(device) # number of original activations that were > min_activation
-        self.min_activation_tol = 1e-15 # TODO: should be different?
         self.mean_diffs = t.zeros(self.d_sae).to(device)
         self.m2_diffs = t.zeros(self.d_sae).to(device)
         self.sum_unablated_f2 = t.zeros(self.d_sae).to(device)
@@ -73,8 +75,8 @@ class AblationAggregator:
         self.masked_m2 = t.zeros(self.d_sae).to(device)
 
         # these get set later
-        self.first_layer_idx = None
-        self.feature_idx = None
+        self.prev_layer_idx = None
+        self.prev_feat_idx = None
 
     # https://stackoverflow.com/questions/5543651/computing-standard-deviation-in-a-stream
     def __post_init__(self) -> None:
@@ -108,13 +110,14 @@ class AblationAggregator:
 
     def aggregate(
         self,
-        first_layer_idx: int,
-        feature_idx: int,
+        prev_layer_idx: int,
+        prev_feat_idx: int,
     ):
         # ensures idempotency
         self.__reset_vars()
-        self.first_layer_idx = first_layer_idx
-        self.feature_idx= feature_idx
+        self.next_layer_min_activation_tol = t.from_numpy(0.01 * self.max_sae_acts[prev_layer_idx+1]).to(device)
+        self.prev_layer_idx = prev_layer_idx
+        self.prev_feat_idx= prev_feat_idx
         data_loader = self._load_data()
         print("Collecting diff aggs")
         num_batches_left = self.num_batches
@@ -128,11 +131,11 @@ class AblationAggregator:
                     batch_tokens,
                     fwd_hooks=[
                         (
-                            f"blocks.{self.first_layer_idx}.hook_resid_pre", 
+                            f"blocks.{self.prev_layer_idx}.hook_resid_pre", 
                             self._save_error_terms,
                         ),
                         (
-                            f"blocks.{self.first_layer_idx+1}.hook_resid_pre", 
+                            f"blocks.{self.prev_layer_idx+1}.hook_resid_pre", 
                             partial(self._save_second_layer_acts, ablated=False),
                         )
                     ]
@@ -142,11 +145,11 @@ class AblationAggregator:
                     batch_tokens,
                     fwd_hooks=[
                         (
-                            f"blocks.{self.first_layer_idx}.hook_resid_pre", 
-                            partial(self._ablate_and_reconstruct_with_errors, feature_idx=self.feature_idx)
+                            f"blocks.{self.prev_layer_idx}.hook_resid_pre", 
+                            partial(self._ablate_and_reconstruct_with_errors, feature_idx=self.prev_feat_idx)
                         ),
                         (
-                            f"blocks.{self.first_layer_idx+1}.hook_resid_pre", 
+                            f"blocks.{self.prev_layer_idx+1}.hook_resid_pre", 
                             partial(self._save_second_layer_acts, ablated=True)
                         )
                     ]
@@ -165,9 +168,9 @@ class AblationAggregator:
         sae: SAE = self.sae_id_to_sae[hook.name]
         sae_feats = sae.encode(activations)
         if ablated:
-            self.second_layer_ablated_acts = sae_feats
+            self.next_layer_ablated_acts = sae_feats
         else:
-            self.second_layer_unablated_acts = sae_feats
+            self.next_layer_unablated_acts = sae_feats
         return activations
 
     def _ablate_and_reconstruct_with_errors(self, activations: t.Tensor, hook: HookPoint, feature_idx: int):
@@ -183,7 +186,7 @@ class AblationAggregator:
         let a be the previous `self` aggregations and b be the new batch's aggregations
         and ab is the result of combining the previous aggregations with the batch aggs
         """
-        curr_diffs = self.second_layer_unablated_acts - self.second_layer_ablated_acts
+        curr_diffs = self.next_layer_unablated_acts - self.next_layer_ablated_acts
         # create the local vars to match the algorithm
         n_a = self.n_total
         n_b = self.num_tokens_per_batch
@@ -198,7 +201,7 @@ class AblationAggregator:
         m2_ab = m2_a + m2_b + (delta.pow(2) * n_a * n_b / n_ab)
         
         # process only the activations where the first layer was active
-        active_mask = self.second_layer_unablated_acts > self.min_activation_tol # TODO: do some sort of tolerance?
+        active_mask = self.next_layer_unablated_acts > self.next_layer_min_activation_tol
         masked_diffs = (curr_diffs * active_mask)
         masked_n_a = self.masked_n
         masked_n_b = active_mask.sum(dim=(0,1))
@@ -226,8 +229,8 @@ class AblationAggregator:
         self.masked_means = masked_mean_ab
         self.masked_m2 = masked_m2_ab
         self.sum_of_squared_masked_f2_diffs += masked_diffs.pow(2).sum(dim=(0,1))
-        self.sum_unablated_f2 += self.second_layer_unablated_acts.sum(dim=(0,1))
-        self.sum_ablated_f2 += self.second_layer_ablated_acts.sum(dim=(0,1))
+        self.sum_unablated_f2 += self.next_layer_unablated_acts.sum(dim=(0,1))
+        self.sum_ablated_f2 += self.next_layer_ablated_acts.sum(dim=(0,1))
         
     def _finalize(self):
         self.mse = self.sum_of_squared_f2_diffs / self.n_total
@@ -237,65 +240,49 @@ class AblationAggregator:
         self.masked_variances = self.masked_m2 / self.masked_n
         self.masked_stdevs = t.sqrt(self.variances)
 
-
-    def save(self):
-        if self.first_layer_idx is None or self.feature_idx is None:
-            raise Exception("need to run aggregate() before save()")
-        directory = "artefacts/ablations"
-        filename_prefix_parts = [
-            ('layer', self.first_layer_idx),
-            ('feat', self.feature_idx),
-            ('num_batches', self.num_batches),
-            ('batch_size', self.batch_size)
-        ]
-        filename_prefix = "__".join(
-            ["_".join([attr_name, str(attr_value)]) for attr_name, attr_value in filename_prefix_parts]
-        )
+    def get_name_to_flat_arrs(self) -> Dict:
         tensor_keys = [
             key for key, val in self.__dict__.items()
             if (
                 isinstance(val, t.Tensor)
-                or val in ("first_layer_idx", "feature_idx")
+                and val.shape == (D_SAE,)
             )
         ]
-        name_to_tensor = {
-            name: getattr(self, name)
+        return {
+            name: getattr(self, name).cpu().numpy()
             for name in tensor_keys
         }
-        filename = f"{directory}/{filename_prefix}.pth"
-        print(f"Saving to {filename}")
-        t.save(name_to_tensor, filename)
-# %%
-def plot_tensor_histogram(tensor, bins=30, cutoff=0.95, tensor_desc="tensor"):
-    """
-    Plots a histogram of the bottom 99% of elements in a PyTorch tensor.
-    
-    Parameters:
-    tensor (torch.Tensor): The input tensor.
-    bins (int): The number of bins for the histogram.
-    """
-    # Compute the 99th percentile value
-    percentile_value = torch.quantile(tensor, cutoff)
-    
-    # Filter out the top 1% of values
-    filtered_tensor = tensor[tensor <= percentile_value]
-    
-    # Compute the histogram
-    hist = torch.histc(filtered_tensor, bins=bins)
-    
-    # Calculate bin edges
-    min_value = torch.min(filtered_tensor)
-    max_value = torch.max(filtered_tensor)
-    bin_edges = torch.linspace(min_value, max_value, steps=bins + 1)
-    
-    # Plotting
-    plt.figure(figsize=(10, 6))
-    plt.bar(bin_edges[:-1].numpy(), hist.numpy(), width=(max_value - min_value) / bins)
-    plt.xlabel('Value')
-    plt.ylabel('Frequency')
-    plt.title(f'Histogram of Bottom {cutoff*100}% of {tensor_desc}')
-    plt.show()
-# %%
+
+    def save(self, next_feature_idxes: List[int]):
+        if self.prev_layer_idx is None or self.prev_feat_idx is None:
+            raise Exception("need to run aggregate() before save()")
+        directory = "artefacts/ablations"
+        for next_feat_idx in next_feature_idxes:
+            filename_prefix_parts = [
+                ('layer', self.prev_layer_idx),
+                ('prev_feat', self.prev_feat_idx),
+                ('next_feat', next_feat_idx),
+                ('num_batches', self.num_batches),
+                ('batch_size', self.batch_size),
+            ]
+            filename_prefix = "__".join(
+                [
+                    "_".join([attr_name, str(attr_value)])
+                    for attr_name, attr_value in filename_prefix_parts
+                ]
+            )
+            next_feat_idxes_arr = np.array(next_feature_idxes)
+            # only save the next features that matter for this prev feature...not all 24k
+            # the information about what these correspond to will be stored in the filename
+            name_to_full_arrs = self.get_name_to_flat_arrs()
+            name_to_numpy = {
+                name: arr[next_feat_idxes_arr] for name, arr in name_to_full_arrs.items()
+            }
+            filename = f"{directory}/{filename_prefix}"
+            print(f"Saving to {filename}.npz")
+            # TODO: only save the ones you care about...
+            raise NotImplementedError("only save the mean diffs! no need to write everything else out")
+            # np.savez(filename, **name_to_numpy)
 
 # %%
 def is_jupyter():
@@ -313,6 +300,7 @@ if __name__ == '__main__':
         parser.add_argument('-f', type=int, help='sae feature idx (within layer)', required=2000)
         parser.add_argument('-n', type=int, help='num of batches', default=2)
         parser.add_argument('-b', type=int, help='batch size', default=3)
+        parser.add_argument('-nf', type=int, help='next feature idxes', nargs='+', default=[2, 10])
         parser.add_argument('--dry-run', type=bool, help='dry run (do not save)', action=argparse.BooleanOptionalAction, default=False)
         args = parser.parse_args()
     else:
@@ -322,6 +310,8 @@ if __name__ == '__main__':
             b = 2
             l = 1
             f = 2
+            nf = [2, 10]
+            dry_run = False
         args = Args()
 
     agg = AblationAggregator(
@@ -329,8 +319,10 @@ if __name__ == '__main__':
         batch_size=args.b,
     )
     agg.aggregate(
-        first_layer_idx=args.l,
-        feature_idx=args.f,
+        prev_layer_idx=args.l,
+        prev_feat_idx=args.f,
     )
     if not args.dry_run:
-        agg.save()
+        agg.save(args.nf)
+# %%
+# %%
