@@ -1,7 +1,7 @@
 import plotly.graph_objects as go
 import networkx as nx
 
-def show_explanation_graph(graph: nx.DiGraph) -> None:
+def show_explanation_graph(graph: nx.DiGraph, show: bool) -> None:
     layout = nx.multipartite_layout(graph, subset_key='layer')
     
     # Each edge is an individual trace, otherwise the width must be the same
@@ -38,4 +38,7 @@ def show_explanation_graph(graph: nx.DiGraph) -> None:
                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                     )
-    fig.show()
+    if show:
+        fig.show()
+
+    return fig
