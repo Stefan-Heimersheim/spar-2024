@@ -50,12 +50,12 @@ def create_id_to_sae() -> typing.Dict[str, SAE]:
     return sae_id_to_sae
 model: HookedTransformer = HookedTransformer.from_pretrained("gpt2-small", device=device)
 sae_id_to_sae = create_id_to_sae()
+max_sae_acts = np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']
 # %%
 @dataclass
 class AblationAggregator:
     num_batches: int
     num_rows_per_batch: int
-    max_sae_acts = np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']
 
     def __reset_vars(self):
         self.sae_errors = t.empty(self.num_rows_per_batch, self.num_toks_per_row, model.cfg.d_model)
@@ -104,8 +104,9 @@ class AblationAggregator:
             max_length=self.num_toks_per_row,
             add_bos_token=self.prepend_bos,
         )
-        num_tokens = self.num_rows_per_batch * self.num_batches * self.num_toks_per_row
-        tokens = token_dataset['tokens'][:num_tokens]
+        num_rows = self.num_rows_per_batch * self.num_batches
+        tokens = token_dataset['tokens'][:num_rows]
+        print(f"Using {num_rows * self.num_toks_per_row} tokens")
         return DataLoader(tokens, batch_size=self.num_rows_per_batch, shuffle=False)
 
     def aggregate(
@@ -115,11 +116,11 @@ class AblationAggregator:
     ):
         # ensures idempotency
         self.__reset_vars()
-        self.next_layer_min_activation_tol = t.from_numpy(0.01 * self.max_sae_acts[prev_layer_idx+1]).to(device)
+        self.next_layer_min_activation_tol = t.from_numpy(0.01 * max_sae_acts[prev_layer_idx+1]).to(device)
         self.prev_layer_idx = prev_layer_idx
         self.prev_feat_idx= prev_feat_idx
         data_loader = self._load_data()
-        print("Collecting diff aggs")
+        print(f"Aggregating layer {prev_layer_idx}, feat {prev_feat_idx}")
         with torch.no_grad():
             for batch_tokens in tqdm(data_loader):
                 model.reset_hooks()
@@ -304,7 +305,7 @@ if __name__ == '__main__':
     else:
         @dataclass
         class Args:
-            n = 1
+            n = 2
             b = 32
             l = 6
             f = 20157
@@ -324,15 +325,20 @@ if __name__ == '__main__':
         agg.save(args.nf)
 # %%
 # %%
-similarity_scores = interaction_scores[6, 20157][nonzero_interaction_idxes]
-mean_diffs = agg.masked_mean_diffs.cpu()[nonzero_interaction_idxes]
-plt.xlabel("similarity_scores")
-plt.ylabel("mean_diffs")
-slope, intercept = np.polyfit(similarity_scores, mean_diffs, 1)
+# similarity_scores = interaction_scores[6, 20157][nonzero_interaction_idxes]
+# mean_diffs = agg.masked_mean_diffs.cpu()[nonzero_interaction_idxes]
+# plt.xlabel("similarity_scores")
+# plt.ylabel("mean_diffs")
+# slope, intercept = np.polyfit(similarity_scores, mean_diffs, 1)
         
-regression_x = np.linspace(0, 1, 10)
-regression_y = intercept + regression_x * slope
-regression_label = f'Regression line: y = {intercept:.2f} + x*{slope:.2f}'
-plt.scatter(similarity_scores, mean_diffs)
-# Plot the regression line
-plt.plot(regression_x, regression_y, color='red', label=regression_label)
+# regression_x = np.linspace(0, 1, 10)
+# regression_y = intercept + regression_x * slope
+# regression_label = f'Regression line: y = {intercept:.2f} + x*{slope:.2f}'
+# plt.scatter(similarity_scores, mean_diffs)
+# # Plot the regression line
+# plt.plot(regression_x, regression_y, color='red', label=regression_label)
+"""
+okay..how do I save this?
+I'm going to have
+
+"""
