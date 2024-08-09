@@ -19,7 +19,7 @@ class Args:
     last_layer = 2
 # TODO: rename
 args = Args()
-diff_agg = AblationAggregator(num_batches=2, batch_size=args.bs)
+diff_agg = AblationAggregator(num_batches=2, num_rows_per_batch=args.bs)
 corr_idxes = get_correlations_idxes(args.measure)
 for layer_idx in range(args.first_layer, args.last_layer):
     prev_feat_to_next_feats = defaultdict(list) 
@@ -38,7 +38,7 @@ def main(args: argparse.Namespace):
     corr_idxes = get_correlations_idxes(args.measure)
 
     # ablate
-    diff_agg = AblationAggregator(num_batches=args.nb, batch_size=args.bs)
+    diff_agg = AblationAggregator(num_batches=args.nb, num_rows_per_batch=args.bs)
     # collect for top 100 and random 100 (which we assume will be low, make sure to dedupe)
     for layer_idx in range(args.first_layer, args.last_layer):
         prev_feat_to_next_feats = defaultdict(list)
