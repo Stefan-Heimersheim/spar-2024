@@ -45,12 +45,9 @@ for layer_idx in range(args.first_layer, args.last_layer):
             mean_diff_results[layer_idx][prev_idx_idx] = (
                 masked_mean_diffs[next_feat]  
             )
-            break
-        break
     filename = f"artefacts/ablations/pearson/up_til_layer_{layer_idx}__toks_{args.nb * args.bs * 128}"
     print(f"Saving {filename}")
     np.savez(filename, mean_diff_results)
-    break
 np.savez(f"artefacts/ablations/pearson/final__toks_{args.nb * args.bs * 128}", mean_diff_results)
 # %%
 # def main(args: argparse.Namespace):
