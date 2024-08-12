@@ -1,21 +1,19 @@
 # %%
 # Imports
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-import argparse
 import torch
-import einops
 import numpy as np
 import sys
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..', 'src'))
 
 from pipeline_helpers import load_model_and_saes
 from similarity_helpers import clamp_low_values, save_compressed
 
-
+# %%
 # OPTIONAL: Check if the correct GPU is visible
 print(torch.cuda.device_count())  # Should print 1
 print(torch.cuda.current_device())  # Should print 0 since it's the first visible device
@@ -50,4 +48,19 @@ similarities.count_nonzero()
 folder = f'../../../artefacts/similarity_measures/cosine_similarity'
 save_compressed(similarities, f'{folder}/res_jb_sae_feature_similarity_cosine_similarity_{clamping_threshold:.1f}')
 
+
 # %%
+# Alternative: Save unclamped similarites by layer
+folder = f'../../../artefacts/similarity_measures/cosine_similarity/.unclamped'
+if not os.path.exists(folder):
+    os.makedirs(folder)
+
+for layer in trange(1):
+    save_compressed(similarities[layer], f'{folder}/res_jb_sae_feature_similarity_cosine_similarity_{layer}')
+
+
+# %%
+similarities = similarities.numpy()
+
+# %%
+[(similarities[i].max(axis=1) > 0).sum() for i in range(11)]
