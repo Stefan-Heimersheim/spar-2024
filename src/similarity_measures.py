@@ -257,7 +257,45 @@ class MutualInformationAggregator(Aggregator):
         mutual_information += (p11 * torch.log(p11 / (px1 * py1))).nan_to_num()
 
         return mutual_information
-    
+
+
+class ActivationCosineSimilarityAggregator(Aggregator):
+    def __init__(self, layer: int, n_features: tuple[int, int], **kwargs):
+        """Calculates the pair-wise cosine similarity of two tensors that are
+        provided batch-wise. All computations are done element-wise with einsum.
+
+        Args:
+            layer (int): First of the two subsequent layers for similarity computation.
+            n_features (tuple[int, int]): Number of features to include per layer.
+        """
+        self.layer = layer
+        self.n_features = n_features
+        n_features_1, n_features_2 = n_features
+
+        # Init aggregator variables
+        self.norm_1 = torch.zeros(n_features_1)
+        self.norm_2 = torch.zeros(n_features_2)
+
+        self.dot_product = torch.zeros(n_features)
+
+    def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
+        n_features_1, n_features_2 = self.n_features
+        
+        activations_1 = activations[self.layer, :n_features_1, :]
+        activations_2 = activations[self.layer + 1, :n_features_2, :]
+        
+        # Aggregate norms and dot product
+        self.norm_1 += (activations_1 ** 2).sum(dim=-1)
+        self.norm_2 += (activations_2 ** 2).sum(dim=-1)
+
+        self.dot_product += einops.einsum(activations_1, activations_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
+
+    def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
+        # Compute the cosine similarity
+        similarities = self.dot_product / (torch.sqrt(self.norm_1.unsqueeze(1)) * torch.sqrt(self.norm_2.unsqueeze(0)))
+
+        return similarities
+
 
 class DeadFeaturePairsAggregator(Aggregator):
     def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0):

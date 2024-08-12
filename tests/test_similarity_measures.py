@@ -11,7 +11,7 @@ from colorama import init, Fore, Style
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from similarity_measures import JaccardSimilarityAggregator, PearsonCorrelationAggregator, SufficiencyAggregator, NecessityAggregator, MutualInformationAggregator
+from similarity_measures import JaccardSimilarityAggregator, PearsonCorrelationAggregator, SufficiencyAggregator, NecessityAggregator, MutualInformationAggregator, ActivationCosineSimilarityAggregator
 
 # Init colorama
 init()
@@ -121,6 +121,22 @@ def manual_necessity(activations, layer, lower_bound=0.0):
     return necessity
 
 
+def manual_cosine(activations, layer, lower_bound=0.0):
+    n_features = activations.shape[1]
+
+    cosine_similarity = torch.empty(n_features, n_features)
+
+    activations_1 = activations[layer]
+    activations_2 = activations[layer + 1]
+    
+    cosine = torch.nn.CosineSimilarity(dim=0)
+    for feature_1 in range(n_features):
+          for feature_2 in range(n_features):
+                cosine_similarity[feature_1, feature_2] = cosine(activations_1[feature_1], activations_2[feature_2])
+
+    return cosine_similarity
+
+
 # %%
 # Define batched loop
 def batched_loop(activations, layer, aggregator_cls, batch_size=32):
@@ -195,8 +211,20 @@ def test_necessity(activations):
             print(f'Failed necessity test for layers {layer}/{layer+1} ({max_error})!')
 
 
-test_jaccard(activations)
-test_pearson(activations)
-test_mutual(activations)
-test_sufficiency(activations)
-test_necessity(activations)
+def test_cosine(activations):
+    for layer in range(n_layers - 1):
+        manual_cosine_similarity = manual_cosine(activations, layer)
+        aggregated_cosine_similarity = batched_loop(activations, layer, ActivationCosineSimilarityAggregator)
+
+        if torch.allclose(manual_cosine_similarity, aggregated_cosine_similarity, atol=1e-6):
+            print(f'Passed cosine test for layers {layer}/{layer+1}.')
+        else:
+            print(f'Failed cosine test for layers {layer}/{layer+1}!')
+
+
+# test_jaccard(activations)
+# test_pearson(activations)
+# test_mutual(activations)
+# test_sufficiency(activations)
+# test_necessity(activations)
+test_cosine(activations)
