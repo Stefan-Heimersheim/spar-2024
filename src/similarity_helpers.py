@@ -48,11 +48,17 @@ def get_n_token_description(n_tokens: int) -> str:
             return str(n_tokens)
 
 
-def get_filename(measure_name: str, activation_threshold: float, clamping_threshold: float, n_tokens: int | str, first_layer: int = None, sae_name: str = 'res_jb_sae') -> str:
+def get_filename(measure_name: str, artefact_name: str, activation_threshold: float, clamping_threshold: float, n_tokens: int | str, first_layer: int = None, sae_name: str = 'res_jb_sae') -> str:
     if type(n_tokens) is int:
         n_tokens = get_n_token_description(n_tokens)
 
-    filename = f'{sae_name}_feature_similarity_{measure_name}_{n_tokens}_{activation_threshold:.1f}'
+    filename = f'{sae_name}_{artefact_name}_{measure_name}'
+
+    if n_tokens is not None:
+        filename += f'_{n_tokens}'
+    
+    if activation_threshold is not None:
+        filename += f'_{activation_threshold:.1f}'
 
     if clamping_threshold is not None:
         filename += f'_{clamping_threshold:.1f}'
