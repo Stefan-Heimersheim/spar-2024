@@ -19,6 +19,7 @@ from pathlib import Path
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..', 'src'))
 
+from similarity_helpers import load_similarity_data
 from visualization import show_explanation_graph
 
 # %%
@@ -36,10 +37,13 @@ print(f"Device: {device}")
 
 
 # %%
-measure_name = 'pearson_correlation'
+measure_name = 'cosine_similarity'
 sae_name = 'res_jb_sae'
 
-similarities = np.load(f'../../../artefacts/similarity_measures/{measure_name}/{sae_name}_feature_similarity_{measure_name}_1M_0.0_0.1.npz')['arr_0']
+# Load similarities from unclamped files to avoid clamping errors
+similarities = load_similarity_data([f'../../../artefacts/similarity_measures/{measure_name}/.unclamped/{sae_name}_feature_similarity_{measure_name}_{layer}.npz' for layer in range(11)])
+
+# Load explanations
 with open(f'../../../artefacts/explanations/{sae_name}_explanations.pkl', 'rb') as f:
     explanations = pickle.load(f)
 
@@ -49,11 +53,12 @@ n_layers = 12
 d_sae = 24576
 
 paths = np.empty((d_sae, n_layers), dtype=int)
-paths[:, 0] = np.arange(d_sae)
+paths[:, 0] = 0
+paths[:, 1] = np.arange(d_sae)
 
 max_similarity_successors = similarities.argmax(axis=-1)
 
-for layer in range(n_layers - 1):
+for layer in range(1, n_layers - 1):
     paths[:, layer + 1] = max_similarity_successors[layer, paths[:, layer]]
 
 
@@ -100,7 +105,7 @@ plt.show()
 
 # %%
 # Set a distance threshold or number of clusters
-t = 11  # This could be a distance threshold or number of clusters, depending on the criterion
+t = 10  # This could be a distance threshold or number of clusters, depending on the criterion
 criterion = 'distance'  # or 'maxclust' if t represents the number of clusters
 
 clusters = fcluster(linkage_matrix, t=t, criterion=criterion)
@@ -130,10 +135,12 @@ def show_cluster(paths, cluster_path_indices, show):
 
 
 # %%
+number_of_cluster_plots = 3
+
 folder = '../../../artefacts/path_clusters'
 Path(folder).mkdir(parents=True, exist_ok=True)
 
-for i in range(25):
+for i in range(number_of_cluster_plots):
     cluster_path_indices = np.argwhere(clusters == reasonable_size_clusters[i]).flatten()
     fig = show_cluster(paths, cluster_path_indices, show=False)
     fig.update_layout(title=f'[{t=}, {lower_bound=}, {upper_bound=}] Cluster {i} ({len(cluster_path_indices)} paths)')
@@ -142,3 +149,9 @@ for i in range(25):
     fig.write_html(f'{folder}/{sae_name}_{measure_name}_path_cluster_{t}_{lower_bound}_{upper_bound}_{i}.html')
 
 # %%
+similarities[1, :10, :].max(axis=-1)
+
+
+# %%
+# Inspect cosine similarities
+similarities.max()
