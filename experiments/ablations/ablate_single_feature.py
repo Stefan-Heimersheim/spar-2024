@@ -34,33 +34,33 @@ if t.backends.mps.is_available():
 else:
     device = "cuda" if t.cuda.is_available() else "cpu"
 print(f"Loaded {device=}")
-
+num_layers = 12
+def create_id_to_sae() -> typing.Dict[str, SAE]:
+    print("Loading SAEs")
+    sae_id_to_sae = {}
+    for layer in tqdm(list(range(num_layers))):
+        sae_id = f"blocks.{layer}.hook_resid_pre"
+        sae, _, _ = SAE.from_pretrained(
+            release="gpt2-small-res-jb",
+            sae_id=sae_id,
+            device=device
+        )
+        sae.eval()  # prevents error if we're expecting a dead neuron mask for who grads
+        sae_id_to_sae[sae_id] = sae 
+    return sae_id_to_sae
+model: HookedTransformer = HookedTransformer.from_pretrained("gpt2-small", device=device)
+sae_id_to_sae = create_id_to_sae()
+max_sae_acts = np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']
 # %%
 @dataclass
 class AblationAggregator:
     num_batches: int
-    batch_size: int
-    model: HookedTransformer = HookedTransformer.from_pretrained("gpt2-small", device=device)
-    max_sae_acts = np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']
-
-    def create_id_to_sae(self) -> typing.Dict[str, SAE]:
-        print("Loading SAEs")
-        sae_id_to_sae = {}
-        for layer in tqdm(list(range(self.model.cfg.n_layers))):
-           sae_id = f"blocks.{layer}.hook_resid_pre"
-           sae, _, _ = SAE.from_pretrained(
-               release="gpt2-small-res-jb",
-               sae_id=sae_id,
-               device=device
-           )
-           sae.eval()  # prevents error if we're expecting a dead neuron mask for who grads
-           sae_id_to_sae[sae_id] = sae 
-        return sae_id_to_sae
+    num_rows_per_batch: int
 
     def __reset_vars(self):
-        self.sae_errors = t.empty(self.batch_size, self.context_size, self.model.cfg.d_model)
-        self.next_layer_unablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
-        self.next_layer_ablated_acts = t.empty(self.batch_size, self.context_size, self.d_sae)
+        self.sae_errors = t.empty(self.num_rows_per_batch, self.num_toks_per_row, model.cfg.d_model)
+        self.next_layer_unablated_acts = t.empty(self.num_rows_per_batch, self.num_toks_per_row, self.d_sae)
+        self.next_layer_ablated_acts = t.empty(self.num_rows_per_batch, self.num_toks_per_row, self.d_sae)
         self.sum_of_f2_diffs = t.zeros(self.d_sae).to(device)
         self.sum_of_squared_f2_diffs = t.zeros(self.d_sae).to(device)
         self.sum_of_squared_masked_f2_diffs= t.zeros(self.d_sae).to(device)
@@ -73,6 +73,7 @@ class AblationAggregator:
         # will only contain the means of the activation diffs in which the first layer's activation was > 0
         self.masked_means = t.zeros(self.d_sae).to(device)
         self.masked_m2 = t.zeros(self.d_sae).to(device)
+        self.sum_of_masked_diffs = t.zeros(self.d_sae).to(device)
 
         # these get set later
         self.prev_layer_idx = None
@@ -85,28 +86,28 @@ class AblationAggregator:
         f2_diffs = difference between f2 when f1 (the feature in the previous layer) is ablated vs unablated
         masked_f2_diffs = f2_diffs, but only if unablated_f2 was non-zero
         """
-        self.sae_id_to_sae = self.create_id_to_sae()
         # These hyperparameters are used to pre-process the data
         pre_0_sae_id = "blocks.0.hook_resid_pre"
-        pre_0_sae = self.sae_id_to_sae[pre_0_sae_id]
-        self.context_size = pre_0_sae.cfg.context_size
+        pre_0_sae = sae_id_to_sae[pre_0_sae_id]
+        self.num_toks_per_row = pre_0_sae.cfg.context_size
         self.prepend_bos = pre_0_sae.cfg.prepend_bos
         self.d_sae = pre_0_sae.cfg.d_sae
-        self.num_tokens_per_batch = self.batch_size*self.context_size
+        self.num_tokens_per_batch = self.num_rows_per_batch*self.num_toks_per_row
         self.__reset_vars()
 
     def _load_data(self) -> DataLoader:
         dataset = load_dataset(path="NeelNanda/pile-10k", split="train", streaming=False)
         token_dataset = tokenize_and_concatenate(
             dataset=dataset,  # type: ignore
-            tokenizer=self.model.tokenizer,  # type: ignore
+            tokenizer=model.tokenizer,  # type: ignore
             streaming=True,
-            max_length=self.context_size,
+            max_length=self.num_toks_per_row,
             add_bos_token=self.prepend_bos,
         )
-        num_tokens = self.batch_size * self.num_batches
-        tokens = token_dataset['tokens'][:num_tokens]
-        return DataLoader(tokens, batch_size=self.batch_size, shuffle=False)
+        num_rows = self.num_rows_per_batch * self.num_batches
+        tokens = token_dataset['tokens'][:num_rows]
+        print(f"Using {num_rows * self.num_toks_per_row} tokens")
+        return DataLoader(tokens, batch_size=self.num_rows_per_batch, shuffle=False)
 
     def aggregate(
         self,
@@ -115,19 +116,16 @@ class AblationAggregator:
     ):
         # ensures idempotency
         self.__reset_vars()
-        self.next_layer_min_activation_tol = t.from_numpy(0.01 * self.max_sae_acts[prev_layer_idx+1]).to(device)
+        self.next_layer_min_activation_tol = t.from_numpy(0.01 * max_sae_acts[prev_layer_idx+1]).to(device)
         self.prev_layer_idx = prev_layer_idx
         self.prev_feat_idx= prev_feat_idx
         data_loader = self._load_data()
-        print("Collecting diff aggs")
-        num_batches_left = self.num_batches
+        print(f"Aggregating layer {prev_layer_idx}, feat {prev_feat_idx}")
         with torch.no_grad():
             for batch_tokens in tqdm(data_loader):
-                if num_batches_left == 0:
-                    break
-                self.model.reset_hooks()
+                model.reset_hooks()
                 # collect the unablated activations
-                self.model.run_with_hooks(
+                model.run_with_hooks(
                     batch_tokens,
                     fwd_hooks=[
                         (
@@ -141,7 +139,7 @@ class AblationAggregator:
                     ]
                 )
                 # collect the activations after ablation
-                self.model.run_with_hooks(
+                model.run_with_hooks(
                     batch_tokens,
                     fwd_hooks=[
                         (
@@ -155,17 +153,16 @@ class AblationAggregator:
                     ]
                 )
                 self._process_global_second_layer_acts()
-                num_batches_left -= 1
         self._finalize()
 
     def _save_error_terms(self, activations: t.Tensor, hook: HookPoint) -> t.Tensor:
-        sae: SAE = self.sae_id_to_sae[hook.name]
+        sae: SAE = sae_id_to_sae[hook.name]
         reconstructed_acts = sae(activations)
         self.sae_errors = activations - reconstructed_acts 
         return activations
 
     def _save_second_layer_acts(self, activations: t.Tensor, hook: HookPoint, ablated: bool):
-        sae: SAE = self.sae_id_to_sae[hook.name]
+        sae: SAE = sae_id_to_sae[hook.name]
         sae_feats = sae.encode(activations)
         if ablated:
             self.next_layer_ablated_acts = sae_feats
@@ -174,7 +171,7 @@ class AblationAggregator:
         return activations
 
     def _ablate_and_reconstruct_with_errors(self, activations: t.Tensor, hook: HookPoint, feature_idx: int):
-        sae: SAE = self.sae_id_to_sae[hook.name]
+        sae: SAE = sae_id_to_sae[hook.name]
         sae_feats = sae.encode(activations)
         sae_feats[:,:,feature_idx] = 0
         return sae.decode(sae_feats) + self.sae_errors # we assume that the hooks are called in the correct order s.t. these errors correspond to the same tokens
@@ -225,6 +222,7 @@ class AblationAggregator:
         self.sum_of_squared_f2_diffs += curr_diffs.pow(2).sum(dim=(0,1))
         self.m2_diffs = m2_ab
 
+        self.sum_of_masked_diffs += masked_sum_b
         self.masked_n = masked_n_ab
         self.masked_means = masked_mean_ab
         self.masked_m2 = masked_m2_ab
@@ -239,6 +237,7 @@ class AblationAggregator:
         self.std_devs = t.sqrt(self.variances)
         self.masked_variances = self.masked_m2 / self.masked_n
         self.masked_stdevs = t.sqrt(self.variances)
+        self.masked_mean_diffs = self.sum_of_masked_diffs / self.masked_n
 
     def get_name_to_flat_arrs(self) -> Dict:
         tensor_keys = [
@@ -263,7 +262,7 @@ class AblationAggregator:
                 ('prev_feat', self.prev_feat_idx),
                 ('next_feat', next_feat_idx),
                 ('num_batches', self.num_batches),
-                ('batch_size', self.batch_size),
+                ('batch_size', self.num_rows_per_batch),
             ]
             filename_prefix = "__".join(
                 [
@@ -307,16 +306,16 @@ if __name__ == '__main__':
         @dataclass
         class Args:
             n = 2
-            b = 2
-            l = 1
-            f = 2
-            nf = [2, 10]
-            dry_run = False
+            b = 32
+            l = 6
+            f = 20157
+            nf = [24292]
+            dry_run = True
         args = Args()
 
     agg = AblationAggregator(
         num_batches=args.n,
-        batch_size=args.b,
+        num_rows_per_batch=args.b,
     )
     agg.aggregate(
         prev_layer_idx=args.l,
@@ -326,3 +325,20 @@ if __name__ == '__main__':
         agg.save(args.nf)
 # %%
 # %%
+# similarity_scores = interaction_scores[6, 20157][nonzero_interaction_idxes]
+# mean_diffs = agg.masked_mean_diffs.cpu()[nonzero_interaction_idxes]
+# plt.xlabel("similarity_scores")
+# plt.ylabel("mean_diffs")
+# slope, intercept = np.polyfit(similarity_scores, mean_diffs, 1)
+        
+# regression_x = np.linspace(0, 1, 10)
+# regression_y = intercept + regression_x * slope
+# regression_label = f'Regression line: y = {intercept:.2f} + x*{slope:.2f}'
+# plt.scatter(similarity_scores, mean_diffs)
+# # Plot the regression line
+# plt.plot(regression_x, regression_y, color='red', label=regression_label)
+"""
+okay..how do I save this?
+I'm going to have
+
+"""

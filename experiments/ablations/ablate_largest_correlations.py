@@ -23,7 +23,7 @@ def get_prev_layer_feat_idxes():
 # %%
 def main(args: argparse.Namespace):
     prev_layer_feat_idxes = get_prev_layer_feat_idxes()
-    diff_agg = AblationAggregator(num_batches=args.nb, batch_size=args.bs)
+    diff_agg = AblationAggregator(num_batches=args.nb, num_rows_per_batch=args.bs)
     for layer_idx in range(args.first_layer, args.last_layer):
         for feat_idx_idx in range(args.num_feats):
             feat_idx = prev_layer_feat_idxes[layer_idx][feat_idx_idx]
