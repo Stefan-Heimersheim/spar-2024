@@ -4,6 +4,16 @@ from typing import List
 import numpy as np
 
 
+from similarity_measures import (
+    PearsonCorrelationAggregator,
+    SufficiencyAggregator,
+    NecessityAggregator,
+    JaccardSimilarityAggregator,
+    MutualInformationAggregator,
+    ActivationCosineSimilarityAggregator
+)
+
+
 def load_similarity_data(files: List[str]):
     if len(files) == 1:  # Single file
         data = np.load(files[0])['arr_0']
@@ -86,3 +96,18 @@ def clamp_and_combine(measure_name: str,
     clamp_low_values(matrix, clamping_threshold)
 
     save_compressed(matrix, f'{base_folder}/{measure_name}/{get_filename(measure_name, activation_threshold, clamping_threshold, n_tokens, sae_name=sae_name)}')
+
+
+def get_measure_names():
+    return ['activation_cosine_similarity', 'cosine_similarity', 'jaccard_similarity', 'mutual_information', 'necessity', 'pearson_correlation', 'sufficiency']
+
+
+def get_aggregator(measure_name):
+    return {
+        'activation_cosine_similarity': ActivationCosineSimilarityAggregator, 
+        'jaccard_similarity': JaccardSimilarityAggregator, 
+        'mutual_information': MutualInformationAggregator, 
+        'necessity': NecessityAggregator, 
+        'pearson_correlation': PearsonCorrelationAggregator, 
+        'sufficiency': SufficiencyAggregator
+    }[measure_name]

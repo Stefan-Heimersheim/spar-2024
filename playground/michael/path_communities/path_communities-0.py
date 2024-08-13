@@ -1,7 +1,7 @@
 # %%
 # Imports
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 import torch
 import numpy as np
@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..', 'src'))
 
-from similarity_helpers import load_similarity_data
+from similarity_helpers import load_similarity_data, get_filename
 from visualization import show_explanation_graph
 
 # %%
@@ -37,11 +37,14 @@ print(f"Device: {device}")
 
 
 # %%
-measure_name = 'cosine_similarity'
+measure_name = 'activation_cosine_similarity'
 sae_name = 'res_jb_sae'
+n_tokens = '1M'
+activation_threshold = 0.0
+artefact_name = 'feature_similarity'
 
 # Load similarities from unclamped files to avoid clamping errors
-similarities = load_similarity_data([f'../../../artefacts/similarity_measures/{measure_name}/.unclamped/{sae_name}_feature_similarity_{measure_name}_{layer}.npz' for layer in range(11)])
+similarities = load_similarity_data([f'../../../artefacts/similarity_measures/{measure_name}/.unclamped/{get_filename(measure_name, artefact_name, activation_threshold, None, n_tokens, layer)}.npz' for layer in range(11)])
 
 # Load explanations
 with open(f'../../../artefacts/explanations/{sae_name}_explanations.pkl', 'rb') as f:
