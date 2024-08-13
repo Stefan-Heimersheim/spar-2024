@@ -37,7 +37,7 @@ print(f"Device: {device}")
 
 
 # %%
-measure_name = 'activation_cosine_similarity'
+measure_name = 'pearson_correlation'
 sae_name = 'res_jb_sae'
 n_tokens = '1M'
 activation_threshold = 0.0
@@ -45,6 +45,7 @@ artefact_name = 'feature_similarity'
 
 # Load similarities from unclamped files to avoid clamping errors
 similarities = load_similarity_data([f'../../../artefacts/similarity_measures/{measure_name}/.unclamped/{get_filename(measure_name, artefact_name, activation_threshold, None, n_tokens, layer)}.npz' for layer in range(11)])
+np.nan_to_num(similarities, copy=False)
 
 # Load explanations
 with open(f'../../../artefacts/explanations/{sae_name}_explanations.pkl', 'rb') as f:
@@ -56,12 +57,11 @@ n_layers = 12
 d_sae = 24576
 
 paths = np.empty((d_sae, n_layers), dtype=int)
-paths[:, 0] = 0
-paths[:, 1] = np.arange(d_sae)
+paths[:, 0] = np.arange(d_sae)
 
 max_similarity_successors = similarities.argmax(axis=-1)
 
-for layer in range(1, n_layers - 1):
+for layer in range(n_layers - 1):
     paths[:, layer + 1] = max_similarity_successors[layer, paths[:, layer]]
 
 
@@ -108,7 +108,7 @@ plt.show()
 
 # %%
 # Set a distance threshold or number of clusters
-t = 10  # This could be a distance threshold or number of clusters, depending on the criterion
+t = 11  # This could be a distance threshold or number of clusters, depending on the criterion
 criterion = 'distance'  # or 'maxclust' if t represents the number of clusters
 
 clusters = fcluster(linkage_matrix, t=t, criterion=criterion)
@@ -138,9 +138,9 @@ def show_cluster(paths, cluster_path_indices, show):
 
 
 # %%
-number_of_cluster_plots = 3
+number_of_cluster_plots = 100
 
-folder = '../../../artefacts/path_clusters'
+folder = '../../../artefacts/path_clusters/2024-08-13 (100 clusters)'
 Path(folder).mkdir(parents=True, exist_ok=True)
 
 for i in range(number_of_cluster_plots):
@@ -150,11 +150,3 @@ for i in range(number_of_cluster_plots):
     fig.show()
 
     fig.write_html(f'{folder}/{sae_name}_{measure_name}_path_cluster_{t}_{lower_bound}_{upper_bound}_{i}.html')
-
-# %%
-similarities[1, :10, :].max(axis=-1)
-
-
-# %%
-# Inspect cosine similarities
-similarities.max()
