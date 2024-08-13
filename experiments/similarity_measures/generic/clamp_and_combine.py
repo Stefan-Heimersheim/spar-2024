@@ -1,6 +1,6 @@
 # %%
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import argparse
 import torch
@@ -10,7 +10,7 @@ import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..', 'src'))
 
-from similarity_helpers import clamp_and_combine
+from similarity_helpers import get_filename, load_similarity_data, clamp_low_values, save_compressed
 
 
 # %%
@@ -27,11 +27,20 @@ print(f"Device: {device}")
 
 
 # %%
-measure_name = "mutual_information"
+measure_name = "necessity"
+sae_name = 'res_jb_sae'
+n_layers = 12
 
-clamp_and_combine(
-    measure_name, 
-    base_folder='../../../artefacts/similarity_measures',
-    clamping_threshold=0.1, 
-    n_tokens='1M'
-)
+folder = f'../../../artefacts/similarity_measures/necessity_relative_activation/.unclamped'
+files = [f'{folder}/{get_filename(measure_name, "feature_similarity", None, None, n_tokens="1M", first_layer=layer, sae_name=sae_name)}.npz' for layer in range(n_layers - 1)]
+
+matrix = load_similarity_data(files)
+matrix = np.nan_to_num(matrix)
+
+# %%
+clamping_threshold = 0.2
+clamp_low_values(matrix, clamping_threshold)
+np.count_nonzero(matrix)
+
+# %%
+save_compressed(matrix, f'../../../artefacts/similarity_measures/necessity_relative_activation/{get_filename(measure_name, "feature_similarity", None, clamping_threshold, n_tokens="1M", sae_name=sae_name)}')

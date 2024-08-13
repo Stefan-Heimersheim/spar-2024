@@ -88,14 +88,14 @@ def clamp_and_combine(measure_name: str,
                       sae_name: str = 'res_jb_sae'
                       ) -> None:
     folder = f'{base_folder}/{measure_name}/.unclamped'
-    files = [f'{folder}/{get_filename(measure_name, activation_threshold, clamping_threshold=None, n_tokens=n_tokens, first_layer=layer, sae_name=sae_name)}.npz' for layer in range(n_layers - 1)]
+    files = [f'{folder}/{get_filename(measure_name, "feature_similarity", activation_threshold, clamping_threshold=None, n_tokens=n_tokens, first_layer=layer, sae_name=sae_name)}.npz' for layer in range(n_layers - 1)]
     
     matrix = load_similarity_data(files)
     matrix = np.nan_to_num(matrix)
 
     clamp_low_values(matrix, clamping_threshold)
 
-    save_compressed(matrix, f'{base_folder}/{measure_name}/{get_filename(measure_name, activation_threshold, clamping_threshold, n_tokens, sae_name=sae_name)}')
+    save_compressed(matrix, f'{base_folder}/{measure_name}/{get_filename(measure_name, "feature_similarity", activation_threshold, clamping_threshold, n_tokens, sae_name=sae_name)}')
 
 
 def get_measure_names():
