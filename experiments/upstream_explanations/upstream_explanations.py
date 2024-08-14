@@ -29,7 +29,7 @@ from explanation_helpers import find_high_similarity_cluster, add_features_to_gr
 # Create list of random downstream features
 n_layers = 12
 d_sae = 24576
-number_of_downstream_features = 500
+number_of_downstream_features = 50
 
 layers = np.random.randint(1, n_layers, size=number_of_downstream_features)
 features = np.random.randint(0, d_sae, size=number_of_downstream_features)
@@ -41,9 +41,10 @@ print(f'Downstream features ({number_of_downstream_features}): {[f"{layer}_{feat
 # %%
 # Loop over all similarity measures and build graph
 artefacts_folder = f'../../artefacts/similarity_measures'
-measures = ['pearson_correlation', 'jaccard_similarity', 'mutual_information'] # , 'sufficiency', 'necessity']
-clamping_thresholds = [0.1, 0.1, 0.1, 0.2, 0.2]
-filenames = [f'res_jb_sae_feature_similarity_{measure}_1M_0.0_{clamping_threshold}' for measure, clamping_threshold in zip(measures, clamping_thresholds)]
+measures = ['necessity', 'necessity_relative_activation']
+activation_thresholds = [0.0, None]
+clamping_thresholds = [0.2, 0.2]
+filenames = [f'{get_filename(measure, "feature_similarity", activation_threshold, clamping_threshold, "1M")}' for measure, activation_threshold, clamping_threshold in zip(measures, activation_thresholds, clamping_thresholds)]
 
 graph = nx.MultiDiGraph()
 for measure, filename in tqdm(zip(measures, filenames), total=len(measures)):
@@ -96,7 +97,7 @@ for node, attr in graph.nodes(data=True):
                     output += f'- {pred_node} (' + format_neuronpedia_link(graph.nodes[pred_node]["explanation"], layer, feature) + f'): {pred_attr["similarity"]:.3f}\n'
 
 # Save file with current date/time since there are no other identifiers
-with open(f'../../artefacts/upstream_explanations/{datetime.datetime.now().strftime("%Y-%m-%d-%H:%M")}_upstream_explanations_{number_of_downstream_features}.md', 'w') as f:
+with open(f'../../artefacts/upstream_explanations/{datetime.datetime.now().strftime("%Y-%m-%d-%H.%M")}_upstream_explanations_{number_of_downstream_features}.md', 'w') as f:
     f.write(output)
 
 
