@@ -107,7 +107,7 @@ def get_aggregator(measure_name):
         'activation_cosine_similarity': ActivationCosineSimilarityAggregator, 
         'jaccard_similarity': JaccardSimilarityAggregator, 
         'mutual_information': MutualInformationAggregator, 
-        'necessity': NecessityAggregator, 
+        'necessity_relative_activation': NecessityAggregator, 
         'pearson_correlation': PearsonCorrelationAggregator, 
-        'sufficiency': SufficiencyAggregator
+        'sufficiency_relative_activation': SufficiencyAggregator
     }[measure_name]
