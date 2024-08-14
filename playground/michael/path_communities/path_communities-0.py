@@ -1,7 +1,7 @@
 # %%
 # Imports
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 import torch
 import numpy as np
@@ -37,10 +37,10 @@ print(f"Device: {device}")
 
 
 # %%
-measure_name = 'pearson_correlation'
+measure_name = 'necessity_relative_activation'
 sae_name = 'res_jb_sae'
 n_tokens = '1M'
-activation_threshold = 0.0
+activation_threshold = None
 artefact_name = 'feature_similarity'
 
 # Load similarities from unclamped files to avoid clamping errors
@@ -140,13 +140,13 @@ def show_cluster(paths, cluster_path_indices, show):
 # %%
 number_of_cluster_plots = 100
 
-folder = '../../../artefacts/path_clusters/2024-08-13 (100 clusters)'
+folder = '../../../artefacts/path_clusters/2024-08-14 (100 clusters)'
 Path(folder).mkdir(parents=True, exist_ok=True)
 
 for i in range(number_of_cluster_plots):
     cluster_path_indices = np.argwhere(clusters == reasonable_size_clusters[i]).flatten()
     fig = show_cluster(paths, cluster_path_indices, show=False)
     fig.update_layout(title=f'[{t=}, {lower_bound=}, {upper_bound=}] Cluster {i} ({len(cluster_path_indices)} paths)')
-    fig.show()
+    # fig.show()
 
     fig.write_html(f'{folder}/{sae_name}_{measure_name}_path_cluster_{t}_{lower_bound}_{upper_bound}_{i}.html')
