@@ -18,7 +18,12 @@ class Args:
     last_layer = 11
 args = Args()
 # %%
-corr_idxes = np.load(f"artefacts/sampled_interaction_measures/{args.measure.value}/evenly_spaced_count_{args.count}.npz")['arr_0']
+if args.measure == Measure.pearson:
+    corr_idxes = np.load(f"artefacts/sampled_interaction_measures/{args.measure.value}/evenly_spaced_count_{args.count}.npz")['arr_0']
+elif args.measure == Measure.jaccard:
+    corr_idxes = np.load(
+        f"artefacts/sampled_interaction_measures/{args.measure.value}/count_{args.count}.npz"
+    )['arr_0']
 num_layers, num_feat_pairs, _ = corr_idxes.shape
 mean_diff_results = np.zeros(shape=(num_layers, num_feat_pairs))
 
