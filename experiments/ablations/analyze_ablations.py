@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from src import D_SAE
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib import cm
+import pandas as pd
 
 # %%
 if t.backends.mps.is_available():
@@ -35,8 +36,63 @@ ablation_data = np.load("/Users/benlerner/work/spar-2024/artefacts/ablations/pea
 num_layers = ablation_data.shape[0]
 # %%
 # I need to find the indices of the ablated pairs, so that I can look up the corresponding values in the interation data
-indices = np.load(f"artefacts/sampled_interaction_measures/pearson_correlation/count_75.npz")['arr_0']
+indices = np.load(f"artefacts/sampled_interaction_measures/pearson_correlation/uneven_count_75.npz")['arr_0']
 
+# %%
+def matrix_summary_statistics(matrix):
+    # Convert the matrix to a 1D array
+    flat_matrix = np.array(matrix).flatten()
+    
+    # Create a pandas Series from the flattened matrix
+    series = pd.Series(flat_matrix)
+    
+    # Calculate summary statistics
+    summary = series.describe(percentiles=[0.2, 0.4, 0.6, 0.8])
+    
+    return summary
+
+# %%
+def create_boxplots(xs, ys, bins):
+    fig, ax = plt.subplots(figsize=(15, 8))
+    
+    boxplot_data = []
+    positions = []
+    
+    for i in range(len(bins) - 1):
+        lower_bound, upper_bound = bins[i], bins[i+1]
+        mask = (xs >= lower_bound) & (xs < upper_bound)
+        bin_data = ys[mask]
+        
+        if bin_data.size > 0:
+            boxplot_data.append(bin_data)
+            positions.append(i)
+    
+    bp = ax.boxplot(boxplot_data, positions=positions, vert=True, 
+                    patch_artist=True, whis=[0, 100])
+    
+    # Customize the appearance
+    for box in bp['boxes']:
+        box.set(facecolor='lightblue', edgecolor='blue', alpha=0.7)
+    for whisker in bp['whiskers']:
+        whisker.set(color='blue', linewidth=1.5, linestyle='--')
+    for cap in bp['caps']:
+        cap.set(color='blue', linewidth=2)
+    for median in bp['medians']:
+        median.set(color='red', linewidth=2)
+    
+    # Set labels and title
+    ax.set_xlabel('Pearson bins')
+    ax.set_ylabel('Mean ablated diff')
+    ax.set_title('Box Plots of ablation scores by pearson bins')
+    
+    # Set x-ticks to be the middle of each bin
+    bin_centers = [(bins[i] + bins[i+1]) / 2 for i in range(len(bins) - 1)]
+    ax.set_xticks(positions)
+    ax.set_xticklabels([f'{bin_centers[i]:.2f}' for i in positions])
+    
+    plt.tight_layout()
+    plt.show()
+    
 # %%
 # Create the new matrix
 sampled_interaction_values = np.zeros(ablation_data.shape)
@@ -44,24 +100,25 @@ sampled_interaction_values = np.zeros(ablation_data.shape)
 # Extract the values
 for i in range(num_layers):
     sampled_interaction_values[i] = interaction_data[i, indices[i, :, 0], indices[i, :, 1]]
-
-
 # %%
 plt.clf()
 similarity_scores = sampled_interaction_values
 mean_diffs = ablation_data
 fig, ax = plt.subplots(figsize=(12, 8))
 plt.xlabel("Pearson correlation")
-plt.ylabel("Mean diff in ablated score (log scale)")
+plt.ylabel("Mean diff in ablated score")
 
 cmap = cm.rainbow
 color_norm = plt.Normalize(vmin=0, vmax=num_layers-1)
-plt.yscale('log')
+# plt.yscale('log')
+plt.ylim(top=0.4)
 for i in range(num_layers):
     color = cmap(color_norm(i))
     plt.scatter(similarity_scores[i, :], mean_diffs[i, :], c=[color], alpha=0.7, label=f'Layer {i}')
 
 # Create colorbar using the figure and specify the location
+sm = plt.cm.ScalarMappable(cmap=cmap, norm=color_norm)
+sm.set_array([])
 cbar = fig.colorbar(sm, ax=ax, ticks=range(num_layers))
 cbar.set_label('Layer Index')
 plt.tight_layout()
