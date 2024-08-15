@@ -1,6 +1,6 @@
 # %%
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 import argparse
 import torch
@@ -27,20 +27,21 @@ print(f"Device: {device}")
 
 
 # %%
-measure_name = "necessity"
+measure_name = "jaccard_similarity_relative_activation"
 sae_name = 'res_jb_sae'
 n_layers = 12
+activation_threshold = 0.3
 
-folder = f'../../../artefacts/similarity_measures/necessity_relative_activation/.unclamped'
-files = [f'{folder}/{get_filename(measure_name, "feature_similarity", None, None, n_tokens="1M", first_layer=layer, sae_name=sae_name)}.npz' for layer in range(n_layers - 1)]
+folder = f'../../../artefacts/similarity_measures/{measure_name}/.unclamped'
+files = [f'{folder}/{get_filename(measure_name, "feature_similarity", activation_threshold, None, n_tokens="1M", first_layer=layer, sae_name=sae_name)}.npz' for layer in range(n_layers - 1)]
 
 matrix = load_similarity_data(files)
 matrix = np.nan_to_num(matrix)
 
 # %%
-clamping_threshold = 0.2
+clamping_threshold = 0.1
 clamp_low_values(matrix, clamping_threshold)
 np.count_nonzero(matrix)
 
 # %%
-save_compressed(matrix, f'../../../artefacts/similarity_measures/necessity_relative_activation/{get_filename(measure_name, "feature_similarity", None, clamping_threshold, n_tokens="1M", sae_name=sae_name)}')
+save_compressed(matrix, f'../../../artefacts/similarity_measures/{measure_name}/{get_filename(measure_name, "feature_similarity", None, clamping_threshold, n_tokens="1M", sae_name=sae_name)}')

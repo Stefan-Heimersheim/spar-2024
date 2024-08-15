@@ -105,7 +105,7 @@ def get_measure_names():
 def get_aggregator(measure_name):
     return {
         'activation_cosine_similarity': ActivationCosineSimilarityAggregator, 
-        'jaccard_similarity': JaccardSimilarityAggregator, 
+        'jaccard_similarity_relative_activation': JaccardSimilarityAggregator, 
         'mutual_information': MutualInformationAggregator, 
         'necessity_relative_activation': NecessityAggregator, 
         'pearson_correlation': PearsonCorrelationAggregator, 
