@@ -1,5 +1,13 @@
 # %%
-from experiments.ablations.ablate_single_feature import AblationAggregator
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../', 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../', 'experiments'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '../../'))
+
+from ablations.ablate_single_feature import AblationAggregator
 import numpy as np
 import torch as t
 import argparse
@@ -14,7 +22,7 @@ class Args:
     nb = 128
     bs = 64
     count = 90
-    first_layer = 0
+    first_layer = 7
     last_layer = 11
 args = Args()
 # %%
