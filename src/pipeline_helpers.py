@@ -1,5 +1,6 @@
 # %%
 # Imports
+import numpy as np
 import torch
 from datasets import load_dataset
 from transformer_lens import HookedTransformer
@@ -8,9 +9,9 @@ from sae_lens import SAE
 import einops
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from threading import Lock
 
 from similarity_measures import Aggregator
-
 
 
 def load_model_and_saes(model_name, sae_name, hook_name, device='cuda') -> tuple[HookedTransformer, list[SAE]]:
@@ -109,3 +110,26 @@ def run_with_aggregator(model, saes, hook_name, tokens, aggregator : Aggregator,
             aggregator.process(sae_activations)
 
         return aggregator.finalize()
+
+
+# %%
+class DeadFeaturesOracle:
+    """Defines a singleton class which contains a boolean array of dead (True)
+    and alive (False) features. Thus, the array is only loaded once and does
+    not take up memory for multiple instances.
+    """
+    _instance = None
+    _dead_features = None
+    _lock = Lock()
+
+    def __new__(cls):
+        with cls._lock:
+            if cls._instance is None:
+                cls._instance = super(DeadFeaturesOracle, cls).__new__(cls)
+                max_activations = np.load(f'../../artefacts/max_sae_activations/res_jb_max_sae_activations.npz')['arr_0']
+                cls._instance._dead_features = (max_activations == 0)
+        
+        return cls._instance
+
+    def is_dead(self, layer, feature):
+        return self._dead_features[layer, feature]

@@ -11,7 +11,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..', 'src'))
 
 from pipeline_helpers import load_model_and_saes, load_data, run_with_aggregator
-from similarity_measures import BackwardImplicationAggregator
+from similarity_measures import NecessityAggregator
 
 
 # %%
@@ -44,7 +44,7 @@ tokens = load_data(model, saes[0], dataset_name='NeelNanda/pile-10k', number_of_
 
 # %%
 # For each pair of layers, call run_with_aggregator and save the result
-measure_name = 'backward_implication'
+measure_name = 'necessity'
 
 output_folder = f'../../../artefacts/similarity_measures/{measure_name}/.unclamped'
 if not os.path.exists(output_folder):
@@ -56,8 +56,8 @@ output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_similari
 d_sae = saes[0].cfg.d_sae
 
 for layer in range(model.cfg.n_layers - 1):
-    aggregator = BackwardImplicationAggregator(layer, (d_sae, d_sae), lower_bound=activity_lower_bound)
+    aggregator = NecessityAggregator(layer, (d_sae, d_sae), lower_bound=activity_lower_bound)
 
-    backward_implications = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
+    necessity_scores = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
 
-    np.savez_compressed(output_filename_fn(layer), backward_implications)
+    np.savez_compressed(output_filename_fn(layer), necessity_scores)

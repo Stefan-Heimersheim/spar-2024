@@ -1,5 +1,7 @@
 # %%
 import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+
 import argparse
 import torch
 import einops
@@ -11,12 +13,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '../../..', 'src'))
 from pipeline_helpers import load_model_and_saes, load_data, run_with_aggregator
 from similarity_measures import (
     PearsonCorrelationAggregator,
-    ForwardImplicationAggregator,
-    BackwardImplicationAggregator,
+    SufficiencyAggregator,
+    NecessityAggregator,
     JaccardSimilarityAggregator,
     MutualInformationAggregator,
-    DeadFeaturePairsAggregator,
-    DeadFeaturesAggregator
+    ActivationCosineSimilarityAggregator
 )
 
 # %%
@@ -29,12 +30,11 @@ args = parser.parse_args()
 # Mapping from argument value to corresponding class
 aggregator_map = {
     'pearson': PearsonCorrelationAggregator,
-    'forward_implication': ForwardImplicationAggregator,
-    'backward_implication': BackwardImplicationAggregator,
+    'sufficiency': SufficiencyAggregator,
+    'necessity': NecessityAggregator,
     'jaccard_similarity': JaccardSimilarityAggregator,
     'mutual_information': MutualInformationAggregator,
-    'dead_feature_pairs': DeadFeaturePairsAggregator,
-    'dead_features': DeadFeaturesAggregator
+    'activation_cosine_similarity': ActivationCosineSimilarityAggregator
 }
 
 def print_valid_aggregators():
@@ -43,7 +43,7 @@ def print_valid_aggregators():
         print(f"- {measure}")
 
 # measure_name = args.measure
-measure_name = "mutual_information"
+measure_name = "activation_cosine_similarity"
 
 if measure_name not in aggregator_map:
     print_valid_aggregators()
@@ -55,7 +55,7 @@ AggregatorClass = aggregator_map[measure_name]
 
 
 # OPTIONAL: Set environment variable to control visibility of GPUs
-#os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 # OPTIONAL: Check if the correct GPU is visible
 print(torch.cuda.device_count())  # Should print 1
@@ -71,9 +71,9 @@ print(f"Device: {device}")
 
 # %%
 # Define number of tokens
-number_of_batches, number_of_token_desc = 1, '4k'
+# number_of_batches, number_of_token_desc = 1, '4k'
 # number_of_batches, number_of_token_desc = 32, '128k'
-# number_of_batches, number_of_token_desc = 256, '1M'
+number_of_batches, number_of_token_desc = 256, '1M'
 # number_of_batches, number_of_token_desc = 4269, '17.5M'
 
 # %%
@@ -83,17 +83,16 @@ tokens = load_data(model, saes[0], dataset_name='NeelNanda/pile-10k', number_of_
 
 # %%
 # For each pair of layers, call run_with_aggregator and save the result
-
-output_folder = f'../../../artefacts/similarity_measures/{measure_name}'
+output_folder = f'../../../artefacts/similarity_measures/{measure_name}/.unclamped'
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
 
 activity_lower_bound = 0.0
-output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_correlation_{measure_name}_{layer}_{layer+1}_{number_of_token_desc}_{activity_lower_bound}.npz'
+output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_similarity_{measure_name}_{number_of_token_desc}_{activity_lower_bound}_{layer}.npz'
 
 d_sae = saes[0].cfg.d_sae
 
-for layer in [9, 10]:  # range(model.cfg.n_layers - 1):
+for layer in range(model.cfg.n_layers - 1):
     aggregator = AggregatorClass(layer, (d_sae, d_sae), lower_bound=activity_lower_bound)
 
     similarities = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)

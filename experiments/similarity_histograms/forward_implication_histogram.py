@@ -12,8 +12,8 @@ from similarity_helpers import load_correlation_data
 
 # %%
 # Load raw (unclamped) files
-folder = '../../artefacts/similarity_measures/forward_implication'
-files = [f'{folder}/.unclamped/res_jb_sae_feature_similarity_forward_implication_{layer}_{layer+1}_1M_0.0.npz' for layer in range(11)]
+folder = '../../artefacts/similarity_measures/sufficiency'
+files = [f'{folder}/.unclamped/res_jb_sae_feature_similarity_sufficiency_{layer}_{layer+1}_1M_0.0.npz' for layer in range(11)]
 matrix = load_correlation_data(files)
 
 
@@ -34,6 +34,6 @@ flat_matrix = matrix.flatten()
 nonzero_values = flat_matrix[flat_matrix > 0]
 
 plt.hist(nonzero_values, bins=100, log=True)
-plt.title('Forward implication: Histogram of all SAE feature pairs')
-plt.xlabel('Forward implication')
+plt.title('Sufficiency: Histogram of all SAE feature pairs')
+plt.xlabel('Sufficiency')
 plt.ylabel('Number of SAE feature pairs')

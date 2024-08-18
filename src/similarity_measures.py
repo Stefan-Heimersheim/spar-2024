@@ -93,9 +93,9 @@ class PearsonCorrelationAggregator(Aggregator):
         return correlations
 
 
-class ForwardImplicationAggregator(Aggregator):
+class SufficiencyAggregator(Aggregator):
     def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
-        """Calculates the pair-wise forward implication of two tensors that are
+        """Calculates the pair-wise sufficiency of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:
@@ -105,7 +105,11 @@ class ForwardImplicationAggregator(Aggregator):
         """
         self.layer = layer
         self.n_features = n_features
-        self.lower_bound = lower_bound
+
+        if not isinstance(lower_bound, torch.Tensor):
+            self.lower_bound = torch.tensor(lower_bound)
+        else:
+            self.lower_bound = lower_bound
 
         n_features_1, n_features_2 = n_features
 
@@ -114,12 +118,18 @@ class ForwardImplicationAggregator(Aggregator):
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
-        
+
         activations_1 = activations[self.layer, :n_features_1, :]
         activations_2 = activations[self.layer + 1, :n_features_2, :]
 
-        active_1 = (activations_1 > self.lower_bound).float()
-        active_2 = (activations_2 > self.lower_bound).float()
+        if len(self.lower_bound.shape) > 0:
+            # For a lower bound matrix, choose the correct rows (layers)
+            active_1 = (activations_1 > self.lower_bound[self.layer].unsqueeze(1)).float()
+            active_2 = (activations_2 > self.lower_bound[self.layer + 1].unsqueeze(1)).float()
+        else:
+            # For a scalar lower bound, just use it
+            active_1 = (activations_1 > self.lower_bound).float()
+            active_2 = (activations_2 > self.lower_bound).float()
 
         self.counts += active_1.sum(dim=-1).unsqueeze(1)
         self.sums += einops.einsum(active_1, active_2, 'n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2')
@@ -128,9 +138,9 @@ class ForwardImplicationAggregator(Aggregator):
         return self.sums / self.counts
 
 
-class BackwardImplicationAggregator(Aggregator):
+class NecessityAggregator(Aggregator):
     def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
-        """Calculates the pair-wise backward implication of two tensors that are
+        """Calculates the pair-wise necessity of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
         Args:
@@ -140,7 +150,11 @@ class BackwardImplicationAggregator(Aggregator):
         """
         self.layer = layer
         self.n_features = n_features
-        self.lower_bound = lower_bound
+
+        if not isinstance(lower_bound, torch.Tensor):
+            self.lower_bound = torch.tensor(lower_bound)
+        else:
+            self.lower_bound = lower_bound
 
         n_features_1, n_features_2 = n_features
 
@@ -153,8 +167,14 @@ class BackwardImplicationAggregator(Aggregator):
         activations_1 = activations[self.layer, :n_features_1, :]
         activations_2 = activations[self.layer + 1, :n_features_2, :]
 
-        active_1 = (activations_1 > self.lower_bound).float()
-        active_2 = (activations_2 > self.lower_bound).float()
+        if len(self.lower_bound.shape) > 0:
+            # For a lower bound matrix, choose the correct rows (layers)
+            active_1 = (activations_1 > self.lower_bound[self.layer].unsqueeze(1)).float()
+            active_2 = (activations_2 > self.lower_bound[self.layer + 1].unsqueeze(1)).float()
+        else:
+            # For a scalar lower bound, just use it
+            active_1 = (activations_1 > self.lower_bound).float()
+            active_2 = (activations_2 > self.lower_bound).float()
 
         self.counts += active_2.sum(dim=-1).unsqueeze(0)
         self.sums += einops.einsum(active_1, active_2, 'n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2')
@@ -175,7 +195,11 @@ class JaccardSimilarityAggregator(Aggregator):
         """
         self.layer = layer
         self.n_features = n_features
-        self.lower_bound = lower_bound
+        
+        if not isinstance(lower_bound, torch.Tensor):
+            self.lower_bound = torch.tensor(lower_bound)
+        else:
+            self.lower_bound = lower_bound
 
         n_features_1, n_features_2 = n_features
 
@@ -188,8 +212,15 @@ class JaccardSimilarityAggregator(Aggregator):
         activations_1 = activations[self.layer, :n_features_1, :]
         activations_2 = activations[self.layer + 1, :n_features_2, :]
 
-        active_1 = (activations_1 > self.lower_bound).float()
-        active_2 = (activations_2 > self.lower_bound).float()
+        if len(self.lower_bound.shape) > 0:
+            # For a lower bound matrix, choose the correct rows (layers)
+            active_1 = (activations_1 > self.lower_bound[self.layer].unsqueeze(1)).float()
+            active_2 = (activations_2 > self.lower_bound[self.layer + 1].unsqueeze(1)).float()
+        else:
+            # For a scalar lower bound, just use it
+            active_1 = (activations_1 > self.lower_bound).float()
+            active_2 = (activations_2 > self.lower_bound).float()
+
         active_1_2 = einops.einsum(active_1, active_2, 'n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2')
 
         self.counts += active_1.sum(dim=-1).unsqueeze(1) + active_2.sum(dim=-1).unsqueeze(0) - active_1_2
@@ -218,8 +249,6 @@ class MutualInformationAggregator(Aggregator):
         self.count_0_1 = torch.zeros(size=n_features)
         self.count_1_0 = torch.zeros(size=n_features)
 
-        
-
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
 
@@ -230,23 +259,16 @@ class MutualInformationAggregator(Aggregator):
         active_1 = (activations_1 > self.lower_bound).float()
         active_2 = (activations_2 > self.lower_bound).float()
 
-        not_1 = 1-active_1
-        not_2 = 1-active_2
+        not_1 = 1 - active_1
+        not_2 = 1 - active_2
 
         self.count_0_0 += einops.einsum(not_1, not_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
-        self.count_0_1 += einops.einsum(active_1, not_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
-        self.count_1_0 += einops.einsum(not_1, active_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")        
+        self.count_0_1 += einops.einsum(not_1, active_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
+        self.count_1_0 += einops.einsum(active_1, not_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")        
 
         self.total_count += activations.shape[-1]
            
-
-
     def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
-
-        
-        # Calculate mutual information
-        mutual_information = torch.zeros(self.n_features)        
-
         p00 = self.count_0_0 / self.total_count
         p01 = self.count_0_1 / self.total_count
         p10 = self.count_1_0 / self.total_count
@@ -256,16 +278,54 @@ class MutualInformationAggregator(Aggregator):
         px0 = p00 + p01
         px1 = p10 + p11
         py0 = p00 + p10
-        py1 = p10 + p11
+        py1 = p01 + p11
 
-        # 4 possible states
-        mutual_information = p00 * torch.log(p00 / (px0 * py0))
-        mutual_information += p01 * torch.log(p01 / (px0 * py1))
-        mutual_information += p10 * torch.log(p10 / (px1 * py0))
-        mutual_information += p11 * torch.log(p11 / (px1 * py1))
+        # Calculate mutual information (4 possible states)
+        mutual_information = torch.zeros(self.n_features)
+        mutual_information += (p00 * torch.log(p00 / (px0 * py0))).nan_to_num()
+        mutual_information += (p01 * torch.log(p01 / (px0 * py1))).nan_to_num()
+        mutual_information += (p10 * torch.log(p10 / (px1 * py0))).nan_to_num()
+        mutual_information += (p11 * torch.log(p11 / (px1 * py1))).nan_to_num()
 
         return mutual_information
-    
+
+
+class ActivationCosineSimilarityAggregator(Aggregator):
+    def __init__(self, layer: int, n_features: tuple[int, int], **kwargs):
+        """Calculates the pair-wise cosine similarity of two tensors that are
+        provided batch-wise. All computations are done element-wise with einsum.
+
+        Args:
+            layer (int): First of the two subsequent layers for similarity computation.
+            n_features (tuple[int, int]): Number of features to include per layer.
+        """
+        self.layer = layer
+        self.n_features = n_features
+        n_features_1, n_features_2 = n_features
+
+        # Init aggregator variables
+        self.norm_1 = torch.zeros(n_features_1)
+        self.norm_2 = torch.zeros(n_features_2)
+
+        self.dot_product = torch.zeros(n_features)
+
+    def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
+        n_features_1, n_features_2 = self.n_features
+        
+        activations_1 = activations[self.layer, :n_features_1, :]
+        activations_2 = activations[self.layer + 1, :n_features_2, :]
+        
+        # Aggregate norms and dot product
+        self.norm_1 += (activations_1 ** 2).sum(dim=-1)
+        self.norm_2 += (activations_2 ** 2).sum(dim=-1)
+
+        self.dot_product += einops.einsum(activations_1, activations_2, "n_features_1 n_tokens, n_features_2 n_tokens -> n_features_1 n_features_2")
+
+    def finalize(self) -> Float[Tensor, 'n_features_1 n_features_2']:
+        # Compute the cosine similarity
+        similarities = self.dot_product / (torch.sqrt(self.norm_1.unsqueeze(1)) * torch.sqrt(self.norm_2.unsqueeze(0)))
+
+        return similarities
 
 
 class DeadFeaturePairsAggregator(Aggregator):
