@@ -25,24 +25,18 @@
       height: 100%;
       padding: 20px;
       box-sizing: border-box;
-      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
       background-color: #f0f0f0;
     }
-    #settings-pane {
-      position: absolute;
-      top: 20px;
-      left: 20px;
-      background: white;
-      border: 1px solid #ccc;
-      padding: 10px;
-      border-radius: 5px;
+    #feature-info {
+      flex-grow: 1;
+      overflow-y: auto;
     }
-    #settings-toggle {
-      cursor: pointer;
-    }
-    #settings-content {
-      display: none;
-      margin-top: 10px;
+    #settings {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #ccc;
     }
   </style>
 </head>
@@ -50,21 +44,21 @@
   <div id="container">
     <div id="sigma-container"></div>
     <div id="info-panel">
-      <h2>Feature Information</h2>
-      <div id="feature-info">Hover over a node to see information</div>
-    </div>
-  </div>
-  <div id="settings-pane">
-    <div id="settings-toggle">⚙️ Settings</div>
-    <div id="settings-content">
-      <h3>Layer Sort:</h3>
-      <label>
-        <input type="radio" name="layer-sort" value="feature-index" checked> Feature Index
-      </label>
-      <br>
-      <label>
-        <input type="radio" name="layer-sort" value="minimize-crossings"> Minimize Crossings
-      </label>
+      <div id="feature-info">
+        <h2>Feature Information</h2>
+        <p>Hover over a node to see information</p>
+      </div>
+      <div id="settings">
+        <h3>Settings</h3>
+        <h4>Layer Sort:</h4>
+        <label>
+          <input type="radio" name="layer-sort" value="feature-index" checked> Feature Index
+        </label>
+        <br>
+        <label>
+          <input type="radio" name="layer-sort" value="minimize-crossings"> Minimize Crossings
+        </label>
+      </div>
     </div>
   </div>
   <script>
@@ -95,9 +89,13 @@
           });
         });
       } else {
-        // Sort nodes by their original index within each layer
+        // Sort nodes by their numerical index within each layer
         Object.keys(nodesByLayer).forEach(layer => {
-          nodesByLayer[layer].sort((a, b) => a.attributes.originalIndex - b.attributes.originalIndex);
+          nodesByLayer[layer].sort((a, b) => {
+            const aIndex = parseInt(a.id.split('_')[1]);
+            const bIndex = parseInt(b.id.split('_')[1]);
+            return aIndex - bIndex;
+          });
         });
       }
 
@@ -199,7 +197,7 @@
           });
 
           sigmaInstance.on('leaveNode', () => {
-            document.getElementById('feature-info').innerHTML = 'Hover over a node to see information';
+            document.getElementById('feature-info').innerHTML = '<h2>Feature Information</h2><p>Hover over a node to see information</p>';
           });
 
           // Add event listener for layout change
@@ -212,12 +210,6 @@
         }
       })
       .catch(error => console.error('Error:', error));
-
-    // Toggle settings pane
-    document.getElementById('settings-toggle').addEventListener('click', () => {
-      const content = document.getElementById('settings-content');
-      content.style.display = content.style.display === 'none' ? 'block' : 'none';
-    });
 
     // Add window resize event listener
     window.addEventListener('resize', updateLayout);
