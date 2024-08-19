@@ -65,6 +65,25 @@
     let sigmaInstance;
     let graph;
 
+    const highlightColor = '#0000FF'; // Dark blue
+    const defaultNodeColor = '#000000'; // Default node color
+    const defaultEdgeColor = '#CCCCCC'; // Default edge color
+
+    function getConnectedElements(nodeId) {
+      const connectedNodes = new Set([nodeId]);
+      const connectedEdges = new Set();
+
+      graph.forEachEdge((edge, attributes, source, target) => {
+        if (source === nodeId || target === nodeId) {
+          connectedNodes.add(source);
+          connectedNodes.add(target);
+          connectedEdges.add(edge);
+        }
+      });
+
+      return { nodes: connectedNodes, edges: connectedEdges };
+    }
+
     function updateLayout() {
       const sortMethod = document.querySelector('input[name="layer-sort"]:checked').value;
       const containerWidth = document.getElementById('sigma-container').offsetWidth;
@@ -153,32 +172,30 @@
     fetch('sample_graph.json')
       .then(response => response.json())
       .then(data => {
-        graph = new graphology.Graph({multi: true});
+        graph = new graphology.Graph();
 
-        // Add nodes with initial positions
-        const containerWidth = document.getElementById('sigma-container').offsetWidth;
-        const containerHeight = document.getElementById('sigma-container').offsetHeight;
-        const layerCount = Math.max(...data.nodes.map(node => node.layer)) + 1;
-        const layerSpacing = containerHeight / (layerCount - 1);
-
+        // Add nodes
         data.nodes.forEach((node, index) => {
           graph.addNode(node.id, {
-            x: Math.random() * containerWidth, // Random initial x position
-            y: node.layer * layerSpacing, // Y position based on layer
+            x: Math.random(),  // Random initial position
+            y: Math.random(),
             size: 5,
             label: node.id,
             layer: node.layer,
-            originalIndex: index
+            originalIndex: index,
+            color: defaultNodeColor
           });
         });
 
-        // Add edges
+        // Add edges (with duplicate check)
         data.links.forEach((link, i) => {
-          graph.addEdge(link.source, link.target, {
-            id: `e${i}`,
-            size: 4*link.similarity,
-            label: `${link.measure}: ${link.similarity.toFixed(2)}`,
-          });
+          if (!graph.hasEdge(link.source, link.target)) {
+            graph.addEdge(link.source, link.target, {
+              size: 4*link.similarity,
+              label: `${link.measure}: ${link.similarity.toFixed(2)}`,
+              color: defaultEdgeColor
+            });
+          }
         });
 
         const container = document.getElementById('sigma-container');
@@ -193,11 +210,40 @@
 
           // Hover effects
           sigmaInstance.on('enterNode', (event) => {
+            const nodeId = event.node;
+            const { nodes, edges } = getConnectedElements(nodeId);
+
+            graph.forEachNode((node, attributes) => {
+              if (nodes.has(node)) {
+                graph.setNodeAttribute(node, 'color', highlightColor);
+              } else {
+                graph.setNodeAttribute(node, 'color', defaultNodeColor);
+              }
+            });
+
+            graph.forEachEdge((edge, attributes) => {
+              if (edges.has(edge)) {
+                graph.setEdgeAttribute(edge, 'color', highlightColor);
+              } else {
+                graph.setEdgeAttribute(edge, 'color', defaultEdgeColor);
+              }
+            });
+
             updateInfoPanel(event.node);
+            sigmaInstance.refresh();
           });
 
           sigmaInstance.on('leaveNode', () => {
+            graph.forEachNode((node) => {
+              graph.setNodeAttribute(node, 'color', defaultNodeColor);
+            });
+
+            graph.forEachEdge((edge) => {
+              graph.setEdgeAttribute(edge, 'color', defaultEdgeColor);
+            });
+
             document.getElementById('feature-info').innerHTML = '<h2>Feature Information</h2><p>Hover over a node to see information</p>';
+            sigmaInstance.refresh();
           });
 
           // Add event listener for layout change
