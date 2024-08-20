@@ -45,7 +45,7 @@ def get_active_features(model, saes, tokens, lower_bound, relative_bound, hook_n
         model.run_with_hooks(tokens)
 
         # Now we can use sae_activations
-        return einops.rearrange((einops.rearrange(sae_activations, 'n_layers n_samples n_tokens n_features -> n_layers n_features n_samples n_tokens') > lower_bound).sum(dim=-1).bool(), 'n_layers n_features n_samples -> n_samples n_layers n_features')
+        return einops.rearrange((einops.rearrange(sae_activations, 'n_layers n_samples n_tokens n_features -> n_layers n_features n_samples n_tokens') > lower_bound)[:, :, :, -1].bool(), 'n_layers n_features n_samples -> n_samples n_layers n_features')
 
 
 # %%
@@ -54,7 +54,7 @@ lower_bounds = np.linspace(0, 1, 20)
 mean_active_features = [get_active_features(model, saes, tokens, lower_bound=lower_bound * max_activations, relative_bound=True).sum(dim=(1, 2)).float().mean() for lower_bound in tqdm(lower_bounds)]
 
 plt.plot(lower_bounds, mean_active_features)
-plt.title(f'Mean number of active features in a 128-token prompt')
+plt.title(f'Mean number of active features for a single token')
 plt.xlabel('Relative activation bound')
 plt.ylabel('Number of active features (across all layers)')
 plt.yscale('log')
@@ -62,13 +62,23 @@ plt.show()
 
 
 # %%
+plt.plot(lower_bounds, mean_active_features)
+plt.title(f'Mean number of active features for a single token')
+plt.xlabel('Relative activation bound')
+plt.ylabel('Number of active features (across all layers)')
+plt.show()
+
+# %%
 # Save matrix for a specific (relative) lower bound
-lower_bound = 0.9
+lower_bound = 0.1
 
 any_active = get_active_features(model, saes, tokens, lower_bound=lower_bound * max_activations, relative_bound=True)
 print(any_active.sum(dim=(1, 2)).float().mean())
 
+
 # %%
-if not os.path.exists('../../artefacts/active_features'):
-    os.makedirs('../../artefacts/active_features')
-np.savez_compressed(f'../../artefacts/active_features/res_jb_sae_active_features_rel_{lower_bound:.1f}_{n_samples}.npz', any_active)
+folder = '../../artefacts/active_features'
+if not os.path.exists(folder):
+    os.makedirs(folder)
+
+np.savez_compressed(f'{folder}/res_jb_sae_active_features_rel_{lower_bound:.1f}_{n_samples}_last.npz', any_active)
