@@ -32,11 +32,15 @@ with open(pearson_corr_filename, 'rb') as data:
     interaction_data = np.load(data)['arr_0']
 
 # %%    
-ablation_data = np.load("/Users/benlerner/work/spar-2024/artefacts/ablations/pearson/final__toks_1048576.npz")['arr_0']
+ablation_0_1 = np.load("artefacts/ablations/pearson/count_90__up_til_layer_1__toks_1048576.npz")['arr_0']
+ablation_2_6 = np.load("artefacts/ablations/pearson/count_90__up_til_layer_6__toks_1048576.npz")['arr_0']
+ablation_7_10 = np.load("artefacts/ablations/pearson/count_90__final__toks_1048576.npz")['arr_0']
+ablation_data = np.concatenate([ablation_0_1[:2], ablation_2_6[2:7], ablation_7_10[7:]], axis=0)
+# %%
 num_layers = ablation_data.shape[0]
 # %%
 # I need to find the indices of the ablated pairs, so that I can look up the corresponding values in the interation data
-indices = np.load(f"artefacts/sampled_interaction_measures/pearson_correlation/uneven_count_75.npz")['arr_0']
+indices = np.load(f"artefacts/sampled_interaction_measures/pearson_correlation/evenly_spaced_count_90.npz")['arr_0']
 
 # %%
 def matrix_summary_statistics(matrix):
@@ -57,6 +61,7 @@ def create_boxplots(xs, ys, bins):
     
     boxplot_data = []
     positions = []
+    mean_values = []
     
     for i in range(len(bins) - 1):
         lower_bound, upper_bound = bins[i], bins[i+1]
@@ -66,6 +71,7 @@ def create_boxplots(xs, ys, bins):
         if bin_data.size > 0:
             boxplot_data.append(bin_data)
             positions.append(i)
+            mean_values.append(np.mean(bin_data))
     
     bp = ax.boxplot(boxplot_data, positions=positions, vert=True, 
                     patch_artist=True, whis=[0, 100])
@@ -80,15 +86,25 @@ def create_boxplots(xs, ys, bins):
     for median in bp['medians']:
         median.set(color='red', linewidth=2)
     
+    # Add green lines for means
+    mean_lines = []
+    for i, pos in enumerate(positions):
+        line = ax.hlines(mean_values[i], pos - 0.4, pos + 0.4, colors='green', linewidth=2)
+        mean_lines.append(line)
+    
     # Set labels and title
-    ax.set_xlabel('Pearson bins')
-    ax.set_ylabel('Mean ablated diff')
-    ax.set_title('Box Plots of ablation scores by pearson bins')
+    ax.set_xlabel('pearson corr bin midpoint')
+    ax.set_ylabel('mean ablated diff')
+    ax.set_title('Box Plots of Mean Ablated Diff by Pearson Correlation Bins')
     
     # Set x-ticks to be the middle of each bin
     bin_centers = [(bins[i] + bins[i+1]) / 2 for i in range(len(bins) - 1)]
     ax.set_xticks(positions)
     ax.set_xticklabels([f'{bin_centers[i]:.2f}' for i in positions])
+    
+    # Add legend
+    ax.legend([bp["medians"][0], mean_lines[0]], ['Median', 'Mean'],
+              loc='upper right')
     
     plt.tight_layout()
     plt.show()
@@ -110,8 +126,6 @@ plt.ylabel("Mean diff in ablated score")
 
 cmap = cm.rainbow
 color_norm = plt.Normalize(vmin=0, vmax=num_layers-1)
-# plt.yscale('log')
-plt.ylim(top=0.4)
 for i in range(num_layers):
     color = cmap(color_norm(i))
     plt.scatter(similarity_scores[i, :], mean_diffs[i, :], c=[color], alpha=0.7, label=f'Layer {i}')
@@ -123,3 +137,7 @@ cbar = fig.colorbar(sm, ax=ax, ticks=range(num_layers))
 cbar.set_label('Layer Index')
 plt.tight_layout()
 plt.show()
+
+# %%
+create_boxplots(similarity_scores.flatten(), mean_diffs.flatten(), np.linspace(0.01, 1.0, 10))
+# %%

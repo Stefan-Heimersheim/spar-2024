@@ -4,102 +4,261 @@
   <meta charset="UTF-8" />
   <title>Sigma.js Graph Visualization</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/2.4.0/sigma.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/graphology/0.25.4/graphology.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/graphology/0.25.1/graphology.umd.js"></script>
   <style>
-    #sigma-container {
-      width: 100%;
-      height: 90vh;
+    body, html {
       margin: 0;
       padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
     }
-    #log {
-      height: 10vh;
+    #container {
+      display: flex;
+      height: 100vh;
+    }
+    #sigma-container {
+      width: 75%;
+      height: 100%;
+    }
+    #info-panel {
+      width: 25%;
+      height: 100%;
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      background-color: #f0f0f0;
+    }
+    #feature-info {
+      flex-grow: 1;
       overflow-y: auto;
+    }
+    #settings {
+      margin-top: 20px;
+      padding-top: 20px;
       border-top: 1px solid #ccc;
-      padding: 10px;
-      font-family: monospace;
     }
   </style>
 </head>
 <body>
-  <div id="sigma-container"></div>
-  <div id="log"></div>
+  <div id="container">
+    <div id="sigma-container"></div>
+    <div id="info-panel">
+      <div id="feature-info">
+        <h2>Feature Information</h2>
+        <p>Hover over a node to see information</p>
+      </div>
+      <div id="settings">
+        <h3>Settings</h3>
+        <h4>Layer Sort:</h4>
+        <label>
+          <input type="radio" name="layer-sort" value="feature-index" checked> Feature Index
+        </label>
+        <br>
+        <label>
+          <input type="radio" name="layer-sort" value="minimize-crossings"> Minimize Crossings
+        </label>
+      </div>
+    </div>
+  </div>
   <script>
-    function log(message) {
-      console.log(message);
-      document.getElementById('log').innerHTML += message + '<br>';
+    let sigmaInstance;
+    let graph;
+
+    const highlightColor = '#0000FF'; // Dark blue
+    const defaultNodeColor = '#000000'; // Default node color
+    const defaultEdgeColor = '#CCCCCC'; // Default edge color
+
+    function getConnectedElements(nodeId) {
+      const connectedNodes = new Set([nodeId]);
+      const connectedEdges = new Set();
+
+      graph.forEachEdge((edge, attributes, source, target) => {
+        if (source === nodeId || target === nodeId) {
+          connectedNodes.add(source);
+          connectedNodes.add(target);
+          connectedEdges.add(edge);
+        }
+      });
+
+      return { nodes: connectedNodes, edges: connectedEdges };
     }
 
-    log('Script started');
+    function updateLayout() {
+      const sortMethod = document.querySelector('input[name="layer-sort"]:checked').value;
+      const containerWidth = document.getElementById('sigma-container').offsetWidth;
+      const containerHeight = document.getElementById('sigma-container').offsetHeight;
+
+      // Group nodes by layer
+      const nodesByLayer = {};
+      graph.forEachNode((node, attributes) => {
+        if (!nodesByLayer[attributes.layer]) {
+          nodesByLayer[attributes.layer] = [];
+        }
+        nodesByLayer[attributes.layer].push({ id: node, attributes });
+      });
+
+      if (sortMethod === 'minimize-crossings') {
+        // Sort nodes within each layer to minimize edge crossings
+        Object.keys(nodesByLayer).forEach(layer => {
+          nodesByLayer[layer].sort((a, b) => {
+            const aConnections = graph.degree(a.id);
+            const bConnections = graph.degree(b.id);
+            return bConnections - aConnections;
+          });
+        });
+      } else {
+        // Sort nodes by their numerical index within each layer
+        Object.keys(nodesByLayer).forEach(layer => {
+          nodesByLayer[layer].sort((a, b) => {
+            const aIndex = parseInt(a.id.split('_')[1]);
+            const bIndex = parseInt(b.id.split('_')[1]);
+            return aIndex - bIndex;
+          });
+        });
+      }
+
+      // Assign positions to nodes
+      const layerCount = Object.keys(nodesByLayer).length;
+      const topMargin = 120;
+      const bottomMargin = 40;
+      const layerSpacing = (containerHeight - topMargin - bottomMargin) / (layerCount - 1);
+      const horizontalPadding = containerWidth * 0.05;
+
+      Object.keys(nodesByLayer).forEach((layer, layerIndex) => {
+        const nodesInLayer = nodesByLayer[layer].length;
+        const availableWidth = containerWidth - 2 * horizontalPadding;
+        const nodeSpacing = availableWidth / (nodesInLayer - 1 || 1);
+        nodesByLayer[layer].forEach((node, index) => {
+          graph.setNodeAttribute(node.id, 'x', horizontalPadding + index * nodeSpacing);
+          graph.setNodeAttribute(node.id, 'y', topMargin + layerIndex * layerSpacing);
+        });
+      });
+
+      if (sigmaInstance) {
+        sigmaInstance.refresh();
+      }
+    }
+
+    function updateInfoPanel(nodeId) {
+      const node = graph.getNodeAttributes(nodeId);
+      const layer = node.layer;
+      const featureNumber = nodeId.split('_')[1];
+      
+      let html = `<h3>Layer ${layer} Feature ${featureNumber}</h3>`;
+      html += `<p>Description placeholder</p>`;
+      
+      // Parent features
+      html += `<h4>Parent features:</h4>`;
+      graph.forEachInEdge(nodeId, (edge, attributes, source, target, sourceAttributes, targetAttributes) => {
+        const parentLayer = graph.getNodeAttributes(source).layer;
+        const parentFeatureNumber = source.split('_')[1];
+        html += `<p>Layer ${parentLayer} Feature ${parentFeatureNumber}: Description placeholder. `;
+        html += `Similarity: ${attributes.label}</p>`;
+      });
+      
+      // Child features
+      html += `<h4>Child features:</h4>`;
+      graph.forEachOutEdge(nodeId, (edge, attributes, source, target, sourceAttributes, targetAttributes) => {
+        const childLayer = graph.getNodeAttributes(target).layer;
+        const childFeatureNumber = target.split('_')[1];
+        html += `<p>Layer ${childLayer} Feature ${childFeatureNumber}: Description placeholder. `;
+        html += `Similarity: ${attributes.label}</p>`;
+      });
+      
+      document.getElementById('feature-info').innerHTML = html;
+    }
 
     fetch('sample_graph.json')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
-        }
-        log('JSON fetched');
-        return response.json();
-      })
+      .then(response => response.json())
       .then(data => {
-        log('JSON parsed');
-        log('Nodes: ' + data.nodes.length + ', Edges: ' + data.links.length);
+        graph = new graphology.Graph();
 
-        const graph = new graphology.Graph({multi: true});
-
-        // Sort nodes by layer and feature
-        const nodes = data.nodes.sort((a, b) => {
-          if (a.layer === b.layer) {
-            return a.feature - b.feature;
-          }
-          return a.layer - b.layer;
-        });
-
-        // Group nodes by layer and assign positions
-        const layerSpacing = 800;
-        const nodeSpacing = 50;
-        const layerPositions = {};
-
-        nodes.forEach(node => {
-          if (!layerPositions[node.layer]) {
-            layerPositions[node.layer] = 0;
-          }
+        // Add nodes
+        data.nodes.forEach((node, index) => {
           graph.addNode(node.id, {
-            x: layerPositions[node.layer],
-            y: node.layer * layerSpacing,
+            x: Math.random(),  // Random initial position
+            y: Math.random(),
             size: 5,
-            label: node.id
+            label: node.id,
+            layer: node.layer,
+            originalIndex: index,
+            color: defaultNodeColor
           });
-          layerPositions[node.layer] += nodeSpacing;
         });
 
-        const existingEdges = new Set();
+        // Add edges (with duplicate check)
         data.links.forEach((link, i) => {
-            const edgeKey = `${link.source}-${link.target}`;
-            if (!existingEdges.has(edgeKey)) {
-                graph.addEdge(link.source, link.target, {
-                    id: `e${i}`,
-                    size: 4*link.similarity, // Map similarity to edge size
-                    label: `${link.measure}: ${link.similarity.toFixed(2)}`,
-                });
-            existingEdges.add(edgeKey);
-            }
+          if (!graph.hasEdge(link.source, link.target)) {
+            graph.addEdge(link.source, link.target, {
+              size: 4*link.similarity,
+              label: `${link.measure}: ${link.similarity.toFixed(2)}`,
+              color: defaultEdgeColor
+            });
+          }
         });
-
-        log('Graph data prepared');
 
         const container = document.getElementById('sigma-container');
-        log('Container found: ' + (container !== null));
-
+        
         try {
-          const sigmaInstance = new Sigma(graph, container, {
-            renderEdgeLabels: true,
+          sigmaInstance = new Sigma(graph, container, {
+            renderEdgeLabels: false,
+            allowWheelZoom: false,
           });
-          log('Sigma renderer created');
+
+          updateLayout();
+
+          // Hover effects
+          sigmaInstance.on('enterNode', (event) => {
+            const nodeId = event.node;
+            const { nodes, edges } = getConnectedElements(nodeId);
+
+            graph.forEachNode((node, attributes) => {
+              if (nodes.has(node)) {
+                graph.setNodeAttribute(node, 'color', highlightColor);
+              } else {
+                graph.setNodeAttribute(node, 'color', defaultNodeColor);
+              }
+            });
+
+            graph.forEachEdge((edge, attributes) => {
+              if (edges.has(edge)) {
+                graph.setEdgeAttribute(edge, 'color', highlightColor);
+              } else {
+                graph.setEdgeAttribute(edge, 'color', defaultEdgeColor);
+              }
+            });
+
+            updateInfoPanel(event.node);
+            sigmaInstance.refresh();
+          });
+
+          sigmaInstance.on('leaveNode', () => {
+            graph.forEachNode((node) => {
+              graph.setNodeAttribute(node, 'color', defaultNodeColor);
+            });
+
+            graph.forEachEdge((edge) => {
+              graph.setEdgeAttribute(edge, 'color', defaultEdgeColor);
+            });
+
+            document.getElementById('feature-info').innerHTML = '<h2>Feature Information</h2><p>Hover over a node to see information</p>';
+            sigmaInstance.refresh();
+          });
+
+          // Add event listener for layout change
+          document.querySelectorAll('input[name="layer-sort"]').forEach(radio => {
+            radio.addEventListener('change', updateLayout);
+          });
+
         } catch (error) {
-          log('Error creating renderer: ' + error.message);
+          console.error('Error creating renderer:', error);
         }
       })
-      .catch(error => log('Error: ' + error.message));
+      .catch(error => console.error('Error:', error));
+
+    // Add window resize event listener
+    window.addEventListener('resize', updateLayout);
   </script>
 </body>
 </html>
