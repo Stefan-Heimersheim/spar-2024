@@ -60,6 +60,7 @@ def similarity_pass_through(similarities):
 
 
 # %%
+# Pearson correlation
 artefacts_folder = '../../artefacts'
 input_artefact = 'feature_similarity'
 sae_name = 'res_jb_sae'
@@ -69,37 +70,12 @@ measure_name = 'pearson_correlation'
 activation_threshold = 0.0
 tokens = '1M'
 
-
-# %%
 print('Loading similarity matrix...')
 input_files = [f'{artefacts_folder}/similarity_measures/{measure_name}/.unclamped/{get_filename(measure_name, input_artefact, activation_threshold, None, tokens, layer)}.npz' for layer in range(n_layers - 1)]
 similarities = load_similarity_data(input_files)
 np.nan_to_num(similarities, copy=False)
 
-
-# %%
-forward_fig, backward_fig = similarity_pass_through(similarities)
-
-
-# %%
-artefacts_folder = '../../artefacts'
-input_artefact = 'feature_similarity'
-sae_name = 'res_jb_sae'
-n_layers = 12
-
-measure_name = 'cosine_similarity'
-activation_threshold = None
-tokens = None
-
-
-# %%
-print('Loading similarity matrix...')
-input_files = [f'{artefacts_folder}/similarity_measures/{measure_name}/.unclamped/{get_filename(measure_name, input_artefact, activation_threshold, None, tokens, layer)}.npz' for layer in range(n_layers - 1)]
-similarities = load_similarity_data(input_files)
-np.nan_to_num(similarities, copy=False)
-
-
-# %%
+print('Plotting...')
 forward_fig, backward_fig = similarity_pass_through(similarities)
 
 forward_fig.update_layout(title=f'Number of forward pass-through features ({measure_name})')
@@ -110,6 +86,33 @@ backward_fig.show()
 
 
 # %%
+# Cosine similarity (on decoder weights)
+artefacts_folder = '../../artefacts'
+input_artefact = 'feature_similarity'
+sae_name = 'res_jb_sae'
+n_layers = 12
+
+measure_name = 'cosine_similarity'
+activation_threshold = None
+tokens = None
+
+print('Loading similarity matrix...')
+input_files = [f'{artefacts_folder}/similarity_measures/{measure_name}/.unclamped/{get_filename(measure_name, input_artefact, activation_threshold, None, tokens, layer)}.npz' for layer in range(n_layers - 1)]
+similarities = load_similarity_data(input_files)
+np.nan_to_num(similarities, copy=False)
+
+print('Plotting...')
+forward_fig, backward_fig = similarity_pass_through(similarities)
+
+forward_fig.update_layout(title=f'Number of forward pass-through features ({measure_name})')
+backward_fig.update_layout(title=f'Number of backward pass-through features ({measure_name})')
+
+forward_fig.show()
+backward_fig.show()
+
+
+# %%
+# Cosine similarities on gpt-3.5-turbo explanations
 print('Loading explanations...')
 with open('../../artefacts/explanations/res_jb_sae_explanations.pkl', 'rb') as f:
     explanations = pickle.load(f)
@@ -120,14 +123,12 @@ embedder = SentenceTransformer('all-MiniLM-L6-v2')
 print('Computing embeddings...')
 embeddings = np.array([embedder.encode(layer_explanations) for layer_explanations in tqdm(explanations)])
 
-
-# %%
 similarities = np.array([cosine_similarity(embeddings[layer], embeddings[layer + 1]) for layer in trange(n_layers - 1)])
 
-
-# %%
+print('Computing similarities...')
 forward_fig, backward_fig = similarity_pass_through(similarities)
 
+print('Plotting...')
 forward_fig.update_layout(title=f'Number of forward pass-through features (explanation similarity)')
 backward_fig.update_layout(title=f'Number of backward pass-through features (explanation similarity)')
 
