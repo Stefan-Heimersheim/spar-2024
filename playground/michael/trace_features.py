@@ -120,3 +120,7 @@ rel_values = np.linspace(0, 1, 30)
 diffs = [get_diff(rel_value) for rel_value in tqdm(rel_values)]
 
 plt.plot(rel_values, diffs)
+
+
+# %%
+    
