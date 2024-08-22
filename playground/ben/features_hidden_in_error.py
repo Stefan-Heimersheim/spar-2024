@@ -34,10 +34,10 @@ else:
 num_layers = 12
 d_model = 768
 d_sae = 24576
-num_toks_per_row = 128
 prepend_bos = True
-num_rows = 64
-batch_size = 32
+num_toks_per_row = 1
+num_rows = 5
+batch_size = 1
 # %%
 def create_id_to_sae() -> typing.Dict[str, SAE]:
     print("Loading SAEs")
@@ -75,10 +75,9 @@ data_loader = load_data()
 projection_sums = t.zeros(num_layers-1, d_sae).to(device)
 counts = t.zeros(num_layers-1, d_sae).to(device)
 mask = t.zeros(batch_size, num_toks_per_row, d_sae).to(device)
-max_activations = t.Tensor(np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']).to(device)
+max_activations_ten_percent = 0.1 * t.Tensor(np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']).to(device)
 
 # %%
-
 # Compile the regex pattern once
 PATTERN = re.compile(r'^blocks\.(\d+)\.hook_resid_pre$')
 
@@ -104,8 +103,8 @@ def set_mask(activations: t.Tensor, hook: HookPoint):
     global mask
     curr_layer_sae: SAE = id_to_sae[hook.name]
     sae_feats = curr_layer_sae.encode(activations)
-    curr_layer_max_acts = max_activations[hook.layer()]
-    mask = sae_feats > 0.1 * curr_layer_max_acts
+    curr_layer_ten_percent_max_acts = max_activations_ten_percent[hook.layer()]
+    mask = sae_feats > curr_layer_ten_percent_max_acts
     return activations
 
 def compute_projections(activations: t.Tensor, hook: HookPoint):
@@ -118,11 +117,9 @@ def compute_projections(activations: t.Tensor, hook: HookPoint):
         curr_layer_sae_error, prev_layer_sae.W_dec,
         "batch seq resid, sae resid -> batch seq sae",
     )
-    projections = (
-        dot_product / t.norm(prev_layer_sae.W_dec, dim=1)
-    )
+    decoder_norms = t.norm(prev_layer_sae.W_dec, dim=1)
+    projections = dot_product / decoder_norms
     masked_projections = projections * mask
-    # print(projection_sums[hook.layer(), :].shape, masked_projections.sum(dim=-1).shape, counts.shape, mask.shape)
     projection_sums[hook.layer()-1, :] += masked_projections.sum(dim=(0, 1))
     counts[hook.layer()-1, :] += mask.sum(dim=(0, 1))
     return activations
