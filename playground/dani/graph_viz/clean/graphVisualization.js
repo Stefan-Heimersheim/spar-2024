@@ -24,7 +24,6 @@ function initializeGraph(data) {
   
   function initializeSigma() {
     const container = document.getElementById('sigma-container');
-    
     sigmaInstance = new Sigma(graph, container, {
       renderEdgeLabels: false,
       allowWheelZoom: false,
@@ -43,33 +42,39 @@ function initializeGraph(data) {
       labelPlacement: "center",
       renderNodes: renderCustomNodes
     });
-  
+
     sigmaInstance.on('enterNode', handleNodeHover);
     sigmaInstance.on('leaveNode', handleNodeLeave);
   }
   
   function renderCustomNodes(context, nodes, camera) {
+    const nodeSize = 5;
     nodes.forEach((node) => {
       const { x, y } = camera.framedGraphToViewport(node);
       context.fillStyle = node.color;
       context.beginPath();
-      context.arc(x, y, 5, 0, Math.PI * 2);
+      context.arc(x, y, nodeSize, 0, Math.PI * 2);
       context.fill();
-  
+
       if (node.highlighted || node.isNeighbor) {
         const tooltip = createNodeTooltip(node.key);
+        const tooltipWidth = context.measureText(tooltip).width + 10;
+        const tooltipHeight = 20;
+
         context.fillStyle = "rgba(0, 0, 0, 0.8)";
-        context.fillRect(x + 10, y - 20, 70, 25);
+        context.fillRect(x - tooltipWidth / 2, y - nodeSize - tooltipHeight - 5, tooltipWidth, tooltipHeight);
         context.fillStyle = "#ffffff";
         context.font = "12px Arial";
-        context.fillText(tooltip, x + 15, y - 5);
+        context.textAlign = "center";
+        context.textBaseline = "middle";
+        context.fillText(tooltip, x, y - nodeSize - tooltipHeight / 2 - 5);
       }
     });
   }
   
-  function createNodeTooltip(node) {
-    const featureIndex = node.split('_')[1];
-    return `Index: ${featureIndex}`;
+  function createNodeTooltip(nodeId) {
+    const [layer, feature] = nodeId.split('_');
+    return `Layer ${layer}, Feature ${feature}`;
   }
   
   function getConnectedElements(nodeId) {
@@ -84,45 +89,46 @@ function initializeGraph(data) {
       }
     });
   
-    return { nodes: connectedNodes, edges: connectedEdges };
+    return { connectedNodes, connectedEdges };
   }
   
   function handleNodeHover(event) {
-    const nodeId = event.node;
-    const { nodes, edges } = getConnectedElements(nodeId);
-  
-    graph.forEachNode((node, attributes) => {
-      if (nodes.has(node)) {
-        graph.setNodeAttribute(node, 'color', highlightColor);
-        graph.setNodeAttribute(node, 'highlighted', node === nodeId);
-        graph.setNodeAttribute(node, 'isNeighbor', node !== nodeId);
+    const hoveredNodeId = event.node;
+    const { connectedNodes, connectedEdges } = getConnectedElements(hoveredNodeId);
+
+    graph.forEachNode((node) => {
+      const isConnected = connectedNodes.has(node);
+      const isHovered = node === hoveredNodeId;
+      
+      graph.setNodeAttribute(node, 'color', isConnected ? highlightColor : defaultNodeColor);
+      graph.setNodeAttribute(node, 'isNeighbor', isConnected && !isHovered);
+      
+      if (isConnected) {
+        const tooltip = createNodeTooltip(node);
+        graph.setNodeAttribute(node, 'tooltip', tooltip);
       } else {
-        graph.setNodeAttribute(node, 'color', defaultNodeColor);
-        graph.setNodeAttribute(node, 'highlighted', false);
-        graph.setNodeAttribute(node, 'isNeighbor', false);
+        graph.removeNodeAttribute(node, 'tooltip');
       }
     });
-  
-    graph.forEachEdge((edge, attributes) => {
-      graph.setEdgeAttribute(edge, 'color', edges.has(edge) ? highlightColor : defaultEdgeColor);
+
+    graph.forEachEdge((edge) => {
+      graph.setEdgeAttribute(edge, 'color', connectedEdges.has(edge) ? highlightColor : defaultEdgeColor);
     });
-  
-    updateInfoPanel(event.node);
+
+    updateInfoPanel(hoveredNodeId);
     sigmaInstance.refresh();
   }
   
   function handleNodeLeave() {
     graph.forEachNode((node) => {
       graph.setNodeAttribute(node, 'color', defaultNodeColor);
-      graph.setNodeAttribute(node, 'highlighted', false);
       graph.setNodeAttribute(node, 'isNeighbor', false);
     });
-  
+
     graph.forEachEdge((edge) => {
       graph.setEdgeAttribute(edge, 'color', defaultEdgeColor);
     });
-  
-    document.getElementById('feature-info').innerHTML = '<h2>Feature Information</h2><p>Hover over a node to see information</p>';
+
     sigmaInstance.refresh();
   }
   
