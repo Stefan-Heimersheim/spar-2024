@@ -1,10 +1,10 @@
 # %%
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
-import argparse
-import torch
-import einops
+# import argparse
+# import torch
+# import einops
 import numpy as np
 import sys
 
@@ -22,14 +22,14 @@ from similarity_measures import (
 
 # %%
 # Command-line argument parsing
-parser = argparse.ArgumentParser(description="Run similarity measure calculations.")
-parser.add_argument('--measure', type=str, required=True, help='Similarity measure to use')
-args = parser.parse_args()
+# parser = argparse.ArgumentParser(description="Run similarity measure calculations.")
+# parser.add_argument('--measure', type=str, required=True, help='Similarity measure to use')
+# args = parser.parse_args()
 
 # %%
 # Mapping from argument value to corresponding class
 aggregator_map = {
-    'pearson': PearsonCorrelationAggregator,
+    'pearson_correlation': PearsonCorrelationAggregator,
     'sufficiency': SufficiencyAggregator,
     'necessity': NecessityAggregator,
     'jaccard_similarity': JaccardSimilarityAggregator,
@@ -43,7 +43,7 @@ def print_valid_aggregators():
         print(f"- {measure}")
 
 # measure_name = args.measure
-measure_name = "activation_cosine_similarity"
+measure_name = "pearson_correlation"
 
 if measure_name not in aggregator_map:
     print_valid_aggregators()
@@ -58,25 +58,28 @@ AggregatorClass = aggregator_map[measure_name]
 # os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 # OPTIONAL: Check if the correct GPU is visible
-print(torch.cuda.device_count())  # Should print 1
-print(torch.cuda.current_device())  # Should print 0 since it's the first visible device
-print(torch.cuda.get_device_name(0))  # Should print the name of the GPU
+# print(torch.cuda.device_count())  # Should print 1
+# print(torch.cuda.current_device())  # Should print 0 since it's the first visible device
+# print(torch.cuda.get_device_name(0))  # Should print the name of the GPU
 
-if torch.backends.mps.is_available():
-    device = "mps"
-else:
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+# if torch.backends.mps.is_available():
+#     device = "mps"
+# else:
+#     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-print(f"Device: {device}")
+# print(f"Device: {device}")
+device = 'cuda:0'
 
 # %%
 # Define number of tokens
 # number_of_batches, number_of_token_desc = 1, '4k'
 # number_of_batches, number_of_token_desc = 32, '128k'
-number_of_batches, number_of_token_desc = 256, '1M'
+# number_of_batches, number_of_token_desc = 256, '1M'
+number_of_batches, number_of_token_desc = 2560, '10M'
 # number_of_batches, number_of_token_desc = 4269, '17.5M'
 
 # %%
+print('Loading model and SAEs...')
 model, saes = load_model_and_saes(model_name='gpt2-small', sae_name='gpt2-small-res-jb', hook_name='hook_resid_pre', device=device)
 
 tokens = load_data(model, saes[0], dataset_name='NeelNanda/pile-10k', number_of_batches=number_of_batches)
@@ -92,7 +95,9 @@ output_filename_fn = lambda layer: f'{output_folder}/res_jb_sae_feature_similari
 
 d_sae = saes[0].cfg.d_sae
 
+print('Running aggregator...')
 for layer in range(model.cfg.n_layers - 1):
+    print(f'Layer {layer}.')
     aggregator = AggregatorClass(layer, (d_sae, d_sae), lower_bound=activity_lower_bound)
 
     similarities = run_with_aggregator(model, saes, 'hook_resid_pre', tokens, aggregator)
