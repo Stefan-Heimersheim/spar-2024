@@ -169,6 +169,11 @@
       document.getElementById('feature-info').innerHTML = html;
     }
 
+    function createNodeTooltip(node) {
+      const featureIndex = node.split('_')[1];
+      return `Index: ${featureIndex}`;
+    }
+
     fetch('sample_graph.json')
       .then(response => response.json())
       .then(data => {
@@ -204,6 +209,37 @@
           sigmaInstance = new Sigma(graph, container, {
             renderEdgeLabels: false,
             allowWheelZoom: false,
+            renderLabels: false,
+            labelRenderedSizeThreshold: -Infinity,
+            labelDensity: 0.07,
+            labelGridCellSize: 60,
+            labelFont: "Arial",
+            labelWeight: "bold",
+            labelColor: {
+              color: "#000000",
+              attribute: null,
+              interpolation: null,
+            },
+            labelSize: 14,
+            labelPlacement: "center",
+            renderNodes: (context, nodes, camera) => {
+              nodes.forEach((node) => {
+                const { x, y } = camera.framedGraphToViewport(node);
+                context.fillStyle = node.color;
+                context.beginPath();
+                context.arc(x, y, 5, 0, Math.PI * 2);
+                context.fill();
+
+                if (node.highlighted || node.isNeighbor) {
+                  const tooltip = createNodeTooltip(node.key);
+                  context.fillStyle = "rgba(0, 0, 0, 0.8)";
+                  context.fillRect(x + 10, y - 20, 70, 25);
+                  context.fillStyle = "#ffffff";
+                  context.font = "12px Arial";
+                  context.fillText(tooltip, x + 15, y - 5);
+                }
+              });
+            }
           });
 
           updateLayout();
@@ -216,8 +252,12 @@
             graph.forEachNode((node, attributes) => {
               if (nodes.has(node)) {
                 graph.setNodeAttribute(node, 'color', highlightColor);
+                graph.setNodeAttribute(node, 'highlighted', node === nodeId);
+                graph.setNodeAttribute(node, 'isNeighbor', node !== nodeId);
               } else {
                 graph.setNodeAttribute(node, 'color', defaultNodeColor);
+                graph.setNodeAttribute(node, 'highlighted', false);
+                graph.setNodeAttribute(node, 'isNeighbor', false);
               }
             });
 
@@ -236,6 +276,8 @@
           sigmaInstance.on('leaveNode', () => {
             graph.forEachNode((node) => {
               graph.setNodeAttribute(node, 'color', defaultNodeColor);
+              graph.setNodeAttribute(node, 'highlighted', false);
+              graph.setNodeAttribute(node, 'isNeighbor', false);
             });
 
             graph.forEachEdge((edge) => {
