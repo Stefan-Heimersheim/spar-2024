@@ -1,3 +1,5 @@
+
+# %%
 import numpy as np
 import sys
 
@@ -15,14 +17,14 @@ def generate_random_array_and_save(l: int, d: int, filename: str = "random_array
     random_array = np.random.uniform(-1, 1, (l, d, d))
     
     # Save the array to a .npz file
-    np.savez(filename, random_array)
+    np.savez(f"np_arrays/{filename}", random_array)
     print(f"Array saved to {filename}")
 
 if __name__ == "__main__":
     # Default values
     l = 11  # Number of layers
     d = 24  # Dimension of each layer
-    file_name = 'test_graph.npz'
+    file_name = 'test_graph_3.npz'
 
     # Check for command-line arguments
     if len(sys.argv) > 1:
