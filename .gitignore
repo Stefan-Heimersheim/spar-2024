@@ -8,3 +8,4 @@ plots/
 .unclamped/
 settings.json
 .cache/
+pile_subset.json
