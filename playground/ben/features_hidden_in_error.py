@@ -35,9 +35,9 @@ num_layers = 12
 d_model = 768
 d_sae = 24576
 prepend_bos = True
-num_toks_per_row = 1
-num_rows = 5
-batch_size = 1
+num_toks_per_row = 128
+num_rows = 131072
+batch_size = 32
 # %%
 def create_id_to_sae() -> typing.Dict[str, SAE]:
     print("Loading SAEs")
@@ -145,3 +145,9 @@ with torch.no_grad():
             ]
         )
 # %%
+
+np.savez(
+    f"artefacts/projected_errs/total_num_toks__{num_rows * num_toks_per_row}",
+    projection_sums=projection_sums.cpu().numpy(),
+    counts=counts.cpu().numpy()
+)

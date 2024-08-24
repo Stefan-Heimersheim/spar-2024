@@ -1,0 +1,50 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: Arial, sans-serif;
+}
+
+#container {
+  display: flex;
+  height: 100vh;
+}
+
+#sigma-container {
+  width: 66.67%;
+  height: 100%;
+}
+
+#config-panel {
+  width: 33.33%;
+  height: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background-color: #f0f0f0;
+}
+
+#feature-info {
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+#settings {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid #ccc;
+}
+
+.sigma-tooltip {
+  max-width: 240px;
+  max-height: 280px;
+  background-color: rgb(249, 247, 237);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  padding: 10px;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #000;
+}
