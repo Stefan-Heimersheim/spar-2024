@@ -13,7 +13,7 @@ import einops
 # %%
 # Abstract Aggregator class
 class Aggregator(ABC):
-    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0, device='cuda'):
         self.layer = layer
         self.n_features = n_features
         self.lower_bound = lower_bound
@@ -29,7 +29,7 @@ class Aggregator(ABC):
 
 # %%
 class PearsonCorrelationAggregator(Aggregator):
-    def __init__(self, layer: int, n_features: tuple[int, int]):
+    def __init__(self, layer: int, n_features: tuple[int, int], device='cuda', **kwargs):
         """Calculates the pair-wise Pearson correlation of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
@@ -45,13 +45,13 @@ class PearsonCorrelationAggregator(Aggregator):
 
         n_features_1, n_features_2 = n_features
 
-        self.sums_1 = torch.zeros(n_features_1)
-        self.sums_2 = torch.zeros(n_features_2)
+        self.sums_1 = torch.zeros(n_features_1, device=device)
+        self.sums_2 = torch.zeros(n_features_2, device=device)
 
-        self.sums_of_squares_1 = torch.zeros(n_features_1)
-        self.sums_of_squares_2 = torch.zeros(n_features_2)
+        self.sums_of_squares_1 = torch.zeros(n_features_1, device=device)
+        self.sums_of_squares_2 = torch.zeros(n_features_2, device=device)
 
-        self.sums_1_2 = torch.zeros(n_features)
+        self.sums_1_2 = torch.zeros(n_features, device=device)
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
@@ -94,7 +94,7 @@ class PearsonCorrelationAggregator(Aggregator):
 
 
 class SufficiencyAggregator(Aggregator):
-    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0, device='cuda'):
         """Calculates the pair-wise sufficiency of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
@@ -107,14 +107,14 @@ class SufficiencyAggregator(Aggregator):
         self.n_features = n_features
 
         if not isinstance(lower_bound, torch.Tensor):
-            self.lower_bound = torch.tensor(lower_bound)
+            self.lower_bound = torch.tensor(lower_bound, device=device)
         else:
             self.lower_bound = lower_bound
 
         n_features_1, n_features_2 = n_features
 
-        self.counts = torch.zeros(n_features_1, n_features_2)
-        self.sums = torch.zeros(n_features_1, n_features_2)
+        self.counts = torch.zeros(n_features_1, n_features_2, device=device)
+        self.sums = torch.zeros(n_features_1, n_features_2, device=device)
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
@@ -139,7 +139,7 @@ class SufficiencyAggregator(Aggregator):
 
 
 class NecessityAggregator(Aggregator):
-    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0, device='cuda'):
         """Calculates the pair-wise necessity of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
@@ -152,14 +152,14 @@ class NecessityAggregator(Aggregator):
         self.n_features = n_features
 
         if not isinstance(lower_bound, torch.Tensor):
-            self.lower_bound = torch.tensor(lower_bound)
+            self.lower_bound = torch.tensor(lower_bound, device=device)
         else:
             self.lower_bound = lower_bound
 
         n_features_1, n_features_2 = n_features
 
-        self.counts = torch.zeros(n_features_1, n_features_2)
-        self.sums = torch.zeros(n_features_1, n_features_2)
+        self.counts = torch.zeros(n_features_1, n_features_2, device=device)
+        self.sums = torch.zeros(n_features_1, n_features_2, device=device)
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
@@ -184,7 +184,7 @@ class NecessityAggregator(Aggregator):
     
 
 class JaccardSimilarityAggregator(Aggregator):
-    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0, device='cuda'):
         """Calculates the pair-wise Jaccard similarity of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
@@ -197,14 +197,14 @@ class JaccardSimilarityAggregator(Aggregator):
         self.n_features = n_features
         
         if not isinstance(lower_bound, torch.Tensor):
-            self.lower_bound = torch.tensor(lower_bound)
+            self.lower_bound = torch.tensor(lower_bound, device=device)
         else:
             self.lower_bound = lower_bound
 
         n_features_1, n_features_2 = n_features
 
-        self.counts = torch.zeros(n_features_1, n_features_2)
-        self.sums = torch.zeros(n_features_1, n_features_2)
+        self.counts = torch.zeros(n_features_1, n_features_2, device=device)
+        self.sums = torch.zeros(n_features_1, n_features_2, device=device)
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
@@ -231,7 +231,7 @@ class JaccardSimilarityAggregator(Aggregator):
 
 
 class MutualInformationAggregator(Aggregator):
-    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound=0.0, device='cuda'):
         """Calculates the pair-wise (binary) mutual information of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
@@ -245,14 +245,13 @@ class MutualInformationAggregator(Aggregator):
         self.lower_bound = lower_bound
 
         self.total_count = 0
-        self.count_0_0 = torch.zeros(size=n_features)
-        self.count_0_1 = torch.zeros(size=n_features)
-        self.count_1_0 = torch.zeros(size=n_features)
+        self.count_0_0 = torch.zeros(size=n_features, device=device)
+        self.count_0_1 = torch.zeros(size=n_features, device=device)
+        self.count_1_0 = torch.zeros(size=n_features, device=device)
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
 
-        # Conceptually
         activations_1 = activations[self.layer, :n_features_1, :]
         activations_2 = activations[self.layer + 1, :n_features_2, :]
 
@@ -272,7 +271,7 @@ class MutualInformationAggregator(Aggregator):
         p00 = self.count_0_0 / self.total_count
         p01 = self.count_0_1 / self.total_count
         p10 = self.count_1_0 / self.total_count
-        p11 = torch.ones(size=self.n_features) - p00 - p01 - p10
+        p11 = torch.ones(size=self.n_features, device=p00.device) - p00 - p01 - p10
 
         # px0 means P(X=0) (which is = P(x=0,y=0) + P(x=0,y=1))
         px0 = p00 + p01
@@ -281,7 +280,7 @@ class MutualInformationAggregator(Aggregator):
         py1 = p01 + p11
 
         # Calculate mutual information (4 possible states)
-        mutual_information = torch.zeros(self.n_features)
+        mutual_information = torch.zeros(self.n_features, device=p00.device)
         mutual_information += (p00 * torch.log(p00 / (px0 * py0))).nan_to_num()
         mutual_information += (p01 * torch.log(p01 / (px0 * py1))).nan_to_num()
         mutual_information += (p10 * torch.log(p10 / (px1 * py0))).nan_to_num()
@@ -291,7 +290,7 @@ class MutualInformationAggregator(Aggregator):
 
 
 class ActivationCosineSimilarityAggregator(Aggregator):
-    def __init__(self, layer: int, n_features: tuple[int, int], **kwargs):
+    def __init__(self, layer: int, n_features: tuple[int, int], device='cuda', **kwargs):
         """Calculates the pair-wise cosine similarity of two tensors that are
         provided batch-wise. All computations are done element-wise with einsum.
 
@@ -304,10 +303,10 @@ class ActivationCosineSimilarityAggregator(Aggregator):
         n_features_1, n_features_2 = n_features
 
         # Init aggregator variables
-        self.norm_1 = torch.zeros(n_features_1)
-        self.norm_2 = torch.zeros(n_features_2)
+        self.norm_1 = torch.zeros(n_features_1, device=device)
+        self.norm_2 = torch.zeros(n_features_2, device=device)
 
-        self.dot_product = torch.zeros(n_features)
+        self.dot_product = torch.zeros(n_features, device=device)
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
@@ -329,12 +328,12 @@ class ActivationCosineSimilarityAggregator(Aggregator):
 
 
 class DeadFeaturePairsAggregator(Aggregator):
-    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0, device='cuda'):
         self.layer = layer
         self.n_features = n_features
         self.lower_bound = lower_bound
 
-        self.sums = torch.zeros(n_features, dtype=torch.int)
+        self.sums = torch.zeros(n_features, dtype=torch.int, device=device)
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features
@@ -352,12 +351,12 @@ class DeadFeaturePairsAggregator(Aggregator):
     
 
 class DeadFeaturesAggregator(Aggregator):
-    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0):
+    def __init__(self, layer: int, n_features: tuple[int, int], lower_bound: float = 0.0, device='cuda'):
         self.layer = layer
         self.n_features = n_features
         self.lower_bound = lower_bound
 
-        self.sums = torch.zeros(n_features, dtype=torch.int)
+        self.sums = torch.zeros(n_features, dtype=torch.int, device=device)
 
     def process(self, activations: Float[Tensor, 'n_layers n_features n_tokens']) -> None:
         n_features_1, n_features_2 = self.n_features

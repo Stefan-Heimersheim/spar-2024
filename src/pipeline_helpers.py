@@ -2,7 +2,7 @@
 # Imports
 import numpy as np
 import torch
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from transformer_lens import HookedTransformer
 from transformer_lens.utils import tokenize_and_concatenate
 from sae_lens import SAE
@@ -10,6 +10,7 @@ import einops
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from threading import Lock
+import json
 
 from similarity_measures import Aggregator
 
@@ -83,12 +84,38 @@ def load_data2(
     else:
         return tokens[:(number_of_batches * batch_size)]
 
-def run_with_aggregator(model, saes, hook_name, tokens, aggregator : Aggregator, batch_size=32):
+
+def load_data_from_file(model, sae, file_path, number_of_batches, batch_size=32):
+    context_size = sae.cfg.context_size
+    prepend_bos = sae.cfg.prepend_bos
+    
+    with open(file_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    dataset = Dataset.from_dict({"text": data})
+
+    token_dataset = tokenize_and_concatenate(
+        dataset=dataset,  # type: ignore
+        tokenizer=model.tokenizer,  # type: ignore
+        streaming=True,
+        max_length=context_size,
+        add_bos_token=prepend_bos
+    )
+
+    # Cut off to avoid a partial batch at the end
+    tokens = token_dataset["tokens"][:((len(token_dataset) // batch_size) * batch_size)]
+
+    if number_of_batches is None:
+        return tokens
+    else:
+        return tokens[:(number_of_batches * batch_size)]
+
+
+def run_with_aggregator(model, saes, hook_name, tokens, aggregator : Aggregator, device, batch_size=32):
     data_loader = DataLoader(tokens, batch_size=batch_size, shuffle=False)
 
     context_size = saes[0].cfg.context_size
     d_sae = saes[0].cfg.d_sae
-    sae_activations = torch.empty(model.cfg.n_layers, d_sae, batch_size * context_size)
+    sae_activations = torch.empty(model.cfg.n_layers, d_sae, batch_size * context_size, device=device)
 
 
     def retrieval_hook(activations, hook):
