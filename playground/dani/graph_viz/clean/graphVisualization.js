@@ -182,4 +182,3 @@ function initializeGraph(data) {
     if (sigmaInstance) {
       sigmaInstance.refresh();
     }
-  } 
