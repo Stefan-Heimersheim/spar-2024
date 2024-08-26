@@ -1,0 +1,48 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: Arial, sans-serif;
+}
+
+#container {
+  display: flex;
+  height: 100vh;
+}
+
+#graph-container {
+  width: 75%;
+  height: 100%;
+  overflow: hidden;
+}
+
+#info-panel {
+  width: 25%;
+  height: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  background-color: #f0f0f0;
+  overflow-y: auto;
+}
+
+.node {
+  fill: #ccc;
+  stroke: #999;
+  stroke-width: 1px;
+}
+
+.node.selected, .node:hover {
+  fill: #4285f4;
+  stroke: #2a56c6;
+  stroke-width: 2px;
+}
+
+.link {
+  stroke: #999;
+  stroke-opacity: 0.6;
+}
+
+.link.selected {
+  stroke: #4285f4;
+  stroke-width: 2px;
+}
