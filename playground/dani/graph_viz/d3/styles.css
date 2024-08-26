@@ -18,6 +18,11 @@ body, html {
   box-sizing: border-box;
 }
 
+#graph-inner-container {
+  width: 100%;
+  height: 100%;
+}
+
 #info-panel {
   width: 25%;
   height: 100%;

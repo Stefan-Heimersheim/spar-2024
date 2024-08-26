@@ -2,7 +2,7 @@ function initializeSVG() {
     console.log("Initializing SVG...");
     return new Promise(resolve => {
         const checkDimensions = () => {
-            const container = document.getElementById('graph-container');
+            const container = document.getElementById('graph-inner-container');
             if (!container) {
                 console.error("Graph container not found");
                 resolve(null);
@@ -18,7 +18,7 @@ function initializeSVG() {
             console.log("Container dimensions:", width, height);
 
             if (width > 0 && height > 0) {
-                const svg = d3.select("#graph-container")
+                const svg = d3.select("#graph-inner-container")
                     .append("svg")
                     .attr("width", "100%")
                     .attr("height", "100%");
@@ -72,41 +72,73 @@ function getNodesByLayerMinimizeCrossings(graph) {
 function updateGraph(width, height) {
     console.log("Updating graph");
 
-    const layerCount = 12;
+    const innerContainer = document.getElementById('graph-inner-container');
+    const { width: innerWidth, height: innerHeight } = innerContainer.getBoundingClientRect();
+
+    // Update SVG dimensions
+    svg.attr("width", innerWidth).attr("height", innerHeight);
+
+    const layerCount = 12; // 0 to 11
     const nodeRadius = 5;
-    const extraMargin = 20;
+    const margin = {
+        top: 20,
+        bottom: 20,
+        left: 20,
+        right: 20
+    };
 
     const sortMethod = document.querySelector('input[name="layer-sort"]:checked').value;
     const nodesByLayer = sortMethod === 'feature-index' 
         ? getNodesByLayerFeatureIndex(graph) 
         : getNodesByLayerMinimizeCrossings(graph);
 
-    const availableWidth = width - 2 * extraMargin;
-    const availableHeight = height - 2 * extraMargin;
+    const availableWidth = innerWidth - margin.left - margin.right;
+    const availableHeight = innerHeight - margin.top - margin.bottom;
     const layerHeight = availableHeight / (layerCount - 1);
 
-    Object.keys(nodesByLayer).forEach((layer, layerIndex) => {
+    // Create a map of node IDs to their positions
+    const nodePositions = new Map();
+
+    // Position nodes
+    Object.keys(nodesByLayer).forEach((layer) => {
+        const layerIndex = parseInt(layer);
         const nodesInLayer = nodesByLayer[layer];
-        const layerY = height - extraMargin - layerIndex * layerHeight;
+        const layerY = innerHeight - margin.bottom - layerIndex * layerHeight;
         
         nodesInLayer.forEach((node, nodeIndex) => {
             const nodeSpacing = availableWidth / (nodesInLayer.length + 1);
-            node.x = extraMargin + (nodeIndex + 1) * nodeSpacing;
-            node.y = layerY;
+            const x = margin.left + (nodeIndex + 1) * nodeSpacing;
+            const y = layerY;
+            nodePositions.set(node.id, { x, y });
         });
     });
 
     // Update links
     const link = svg.selectAll(".link")
-        .data(graph.links)
-        .join("line")
-        .attr("class", "link")
-        .attr("stroke-width", d => Math.sqrt(d.similarity) * 2)
-        .attr("x1", d => d.source.x)
-        .attr("y1", d => d.source.y)
-        .attr("x2", d => d.target.x)
-        .attr("y2", d => d.target.y);
-
+    .data(graph.links)
+    .join("line")
+    .attr("class", "link")
+    .attr("stroke-width", d => Math.sqrt(d.similarity) * 2)
+    .attr("x1", d => {
+        const x = nodePositions.get(d.source)?.x;
+        if (x === undefined) console.log("Missing source node:", d.source);
+        return x || 0;
+    })
+    .attr("y1", d => {
+        const y = nodePositions.get(d.source)?.y;
+        if (y === undefined) console.log("Missing source node:", d.source);
+        return y || 0;
+    })
+    .attr("x2", d => {
+        const x = nodePositions.get(d.target)?.x;
+        if (x === undefined) console.log("Missing target node:", d.target);
+        return x || 0;
+    })
+    .attr("y2", d => {
+        const y = nodePositions.get(d.target)?.y;
+        if (y === undefined) console.log("Missing target node:", d.target);
+        return y || 0;
+    });
     console.log("Links updated:", link.size());
 
     // Update nodes
@@ -115,8 +147,8 @@ function updateGraph(width, height) {
         .join("circle")
         .attr("class", "node")
         .attr("r", nodeRadius)
-        .attr("cx", d => d.x)
-        .attr("cy", d => d.y)
+        .attr("cx", d => nodePositions.get(d.id)?.x || 0)
+        .attr("cy", d => nodePositions.get(d.id)?.y || 0)
         .attr("fill", d => d3.schemeCategory10[d.layer % 10]);
 
     console.log("Nodes updated:", node.size());

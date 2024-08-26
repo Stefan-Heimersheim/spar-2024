@@ -48,8 +48,9 @@ ensureDOMLoaded(() => {
 
 window.addEventListener("resize", () => {
     console.log("Window resized");
-    const { svg, width, height } = initializeSVG();
-    if (graph) {
-        updateGraph(svg, width, height);
+    const container = document.getElementById('graph-inner-container');
+    const { width, height } = container.getBoundingClientRect();
+    if (graph && svg) {
+        updateGraph(width, height);
     }
 });
