@@ -33,14 +33,7 @@ function initializeSVG() {
     });
 }
 
-function updateGraph(svg, width, height) {
-    console.log("Updating graph");
-
-    const layerCount = 12; // Assuming 12 layers for GPT2
-    const layerHeight = height / layerCount;
-    const nodeRadius = 5;
-
-    // Group nodes by layer
+function getNodesByLayerFeatureIndex(graph) {
     const nodesByLayer = {};
     graph.nodes.forEach(node => {
         if (!nodesByLayer[node.layer]) {
@@ -49,18 +42,61 @@ function updateGraph(svg, width, height) {
         nodesByLayer[node.layer].push(node);
     });
 
-    // Position nodes
+    Object.keys(nodesByLayer).forEach(layer => {
+        nodesByLayer[layer].sort((a, b) => a.feature - b.feature);
+    });
+
+    return nodesByLayer;
+}
+
+function getNodesByLayerMinimizeCrossings(graph) {
+    const nodesByLayer = {};
+    graph.nodes.forEach(node => {
+        if (!nodesByLayer[node.layer]) {
+            nodesByLayer[node.layer] = [];
+        }
+        nodesByLayer[node.layer].push(node);
+    });
+
+    Object.keys(nodesByLayer).forEach(layer => {
+        nodesByLayer[layer].sort((a, b) => {
+            const aConnections = graph.links.filter(link => link.source === a || link.target === a).length;
+            const bConnections = graph.links.filter(link => link.source === b || link.target === b).length;
+            return bConnections - aConnections;
+        });
+    });
+
+    return nodesByLayer;
+}
+
+function updateGraph(width, height) {
+    console.log("Updating graph");
+
+    const layerCount = 12;
+    const nodeRadius = 5;
+    const extraMargin = 20;
+
+    const sortMethod = document.querySelector('input[name="layer-sort"]:checked').value;
+    const nodesByLayer = sortMethod === 'feature-index' 
+        ? getNodesByLayerFeatureIndex(graph) 
+        : getNodesByLayerMinimizeCrossings(graph);
+
+    const availableWidth = width - 2 * extraMargin;
+    const availableHeight = height - 2 * extraMargin;
+    const layerHeight = availableHeight / (layerCount - 1);
+
     Object.keys(nodesByLayer).forEach((layer, layerIndex) => {
         const nodesInLayer = nodesByLayer[layer];
-        const layerY = layerIndex * layerHeight + layerHeight / 2;
+        const layerY = height - extraMargin - layerIndex * layerHeight;
         
         nodesInLayer.forEach((node, nodeIndex) => {
-            const layerWidth = width - 2 * nodeRadius;
-            node.x = (nodeIndex / (nodesInLayer.length - 1)) * layerWidth + nodeRadius;
+            const nodeSpacing = availableWidth / (nodesInLayer.length + 1);
+            node.x = extraMargin + (nodeIndex + 1) * nodeSpacing;
             node.y = layerY;
         });
     });
 
+    // Update links
     const link = svg.selectAll(".link")
         .data(graph.links)
         .join("line")
@@ -73,6 +109,7 @@ function updateGraph(svg, width, height) {
 
     console.log("Links updated:", link.size());
 
+    // Update nodes
     const node = svg.selectAll(".node")
         .data(graph.nodes)
         .join("circle")
@@ -87,8 +124,6 @@ function updateGraph(svg, width, height) {
     node.on("click", handleNodeClick)
         .on("mouseover", handleNodeHover)
         .on("mouseout", handleNodeLeave);
-
-    // Remove the simulation as it's no longer needed
 }
 
 function drag(simulation) {
@@ -127,6 +162,7 @@ function handleNodeClick(event, d) {
 }
 
 function handleNodeHover(event, d) {
+    console.log("Node hovered:", d);
     if (!selectedNode) {
         highlightNode(d);
     }
