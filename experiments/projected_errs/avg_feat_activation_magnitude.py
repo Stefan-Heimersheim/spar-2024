@@ -105,5 +105,6 @@ with torch.no_grad():
 np.savez(
     f"artefacts/projected_errs/avg_masked_feats__total_num_toks__{num_rows * num_toks_per_row}",
     activation_sums=activation_sums.cpu().numpy(),
-    counts=counts.cpu().numpy()
+    counts=counts.cpu().numpy(),
+    ratios=(activation_sums / counts).cpu().numpy()
 )
