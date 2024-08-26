@@ -211,7 +211,15 @@ function handleNodeLeave(event, d) {
 
 function highlightNode(d, highlightType) {
     const neighbors = nodeNeighbors.get(d.id);
-    const connectedNodes = new Set([d, ...neighbors.nodes]);
+    const neighborNodeIds = neighbors.nodes;
+    const connectedNodes = new Set([d]);
+    
+    // Add actual node objects to connectedNodes
+    neighborNodeIds.forEach(nodeId => {
+        const node = graph.nodes.find(n => n.id === nodeId);
+        if (node) connectedNodes.add(node);
+    });
+
     const connectedLinks = neighbors.edges;
 
     // Remove all highlight classes first
@@ -227,6 +235,7 @@ function highlightNode(d, highlightType) {
 
     // Apply new highlight classes based on highlightType
     if (highlightType === 'selected' || highlightType === 'hovered') {
+        console.log(connectedNodes);
         svg.selectAll(".node")
             .classed(`${highlightType}-node`, node => node === d)
             .classed(`${highlightType}-neighbor`, node => connectedNodes.has(node) && node !== d);
