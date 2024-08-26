@@ -109,7 +109,7 @@ function updateGraph(width, height) {
             const nodeSpacing = availableWidth / (nodesInLayer.length + 1);
             const x = margin.left + (nodeIndex + 1) * nodeSpacing;
             const y = layerY;
-            nodePositions.set(node.id, { x, y });
+            nodePositions.set(node.id, { x, y, renderOrder: x });
         });
     });
 
@@ -149,7 +149,12 @@ function updateGraph(width, height) {
         .attr("r", nodeRadius)
         .attr("cx", d => nodePositions.get(d.id)?.x || 0)
         .attr("cy", d => nodePositions.get(d.id)?.y || 0)
-        .attr("fill", d => d3.schemeCategory10[d.layer % 10]);
+        .attr("fill", d => d3.schemeCategory10[d.layer % 10])
+        .sort((a, b) => {
+            const orderA = nodePositions.get(a.id)?.renderOrder || 0;
+            const orderB = nodePositions.get(b.id)?.renderOrder || 0;
+            return orderA - orderB;
+        });
 
     console.log("Nodes updated:", node.size());
 
