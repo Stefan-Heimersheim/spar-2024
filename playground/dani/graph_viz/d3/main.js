@@ -1,6 +1,7 @@
 let graph;
 let selectedNode = null;
 let svg;
+let nodeNeighbors = new Map();
 
 function initializeGraph() {
     console.log("Initializing graph...");
@@ -14,6 +15,7 @@ function initializeGraph() {
             .then(data => {
                 console.log("Data loaded:", data);
                 graph = data;
+                initializeNodeNeighbors();
                 console.log("Graph nodes:", graph.nodes.length, "Graph links:", graph.links.length);
                 updateGraph(width, height);
             })
@@ -54,3 +56,21 @@ window.addEventListener("resize", () => {
         updateGraph(width, height);
     }
 });
+
+function initializeNodeNeighbors() {
+    nodeNeighbors = new Map();
+    graph.nodes.forEach(node => {
+        nodeNeighbors.set(node.id, { nodes: new Set(), edges: new Set() });
+    });
+
+    graph.links.forEach(link => {
+        const sourceNeighbors = nodeNeighbors.get(link.source);
+        const targetNeighbors = nodeNeighbors.get(link.target);
+
+        sourceNeighbors.nodes.add(link.target);
+        sourceNeighbors.edges.add(link);
+
+        targetNeighbors.nodes.add(link.source);
+        targetNeighbors.edges.add(link);
+    });
+}

@@ -38,9 +38,27 @@ body, html {
   stroke-width: 1px;
 }
 
-.node.selected, .node:hover {
+.node.selected-node {
   fill: #4285f4;
   stroke: #2a56c6;
+  stroke-width: 2px;
+}
+
+.node.selected-neighbor {
+  fill: #8ab4f8;
+  stroke: #4285f4;
+  stroke-width: 2px;
+}
+
+.node.hovered-node {
+  fill: #ff7f0e;
+  stroke: #e65c00;
+  stroke-width: 2px;
+}
+
+.node.hovered-neighbor {
+  fill: #ffd1a3;
+  stroke: #ff7f0e;
   stroke-width: 2px;
 }
 
@@ -49,7 +67,14 @@ body, html {
   stroke-opacity: 0.6;
 }
 
-.link.selected {
+.link.selected-edge {
   stroke: #4285f4;
+  stroke-opacity: 1;
+  stroke-width: 2px;
+}
+
+.link.hovered-edge {
+  stroke: #ff7f0e;
+  stroke-opacity: 1;
   stroke-width: 2px;
 }

@@ -193,51 +193,57 @@ function handleNodeClick(event, d) {
         resetGraphStyles();
     } else {
         selectedNode = d;
-        highlightNode(d);
+        highlightNode(d, 'selected');
     }
     updateInfoPanel(d);
 }
 
 function handleNodeHover(event, d) {
-    console.log("Node hovered:", d);
-    if (!selectedNode) {
-        highlightNode(d);
+    highlightNode(d, 'hovered');
+}
+
+function handleNodeLeave(event, d) {
+    resetGraphStyles();
+    if (selectedNode) {
+        highlightNode(selectedNode, 'selected');
     }
 }
 
-function handleNodeLeave() {
-    if (!selectedNode) {
-        resetGraphStyles();
+function highlightNode(d, highlightType) {
+    const neighbors = nodeNeighbors.get(d.id);
+    const connectedNodes = new Set([d, ...neighbors.nodes]);
+    const connectedLinks = neighbors.edges;
+
+    // Remove all highlight classes first
+    // svg.selectAll(".node")
+    //     .classed("selected-node", false)
+    //     .classed("selected-neighbor", false)
+    //     .classed("hovered-node", false)
+    //     .classed("hovered-neighbor", false);
+
+    // svg.selectAll(".link")
+    //     .classed("selected-edge", false)
+    //     .classed("hovered-edge", false);
+
+    // Apply new highlight classes based on highlightType
+    if (highlightType === 'selected' || highlightType === 'hovered') {
+        svg.selectAll(".node")
+            .classed(`${highlightType}-node`, node => node === d)
+            .classed(`${highlightType}-neighbor`, node => connectedNodes.has(node) && node !== d);
+
+        svg.selectAll(".link")
+            .classed(`${highlightType}-edge`, link => connectedLinks.has(link));
     }
-}
-
-function highlightNode(d) {
-    const connectedNodes = new Set();
-    const connectedLinks = new Set();
-
-    graph.links.forEach(link => {
-        if (link.source === d || link.target === d) {
-            connectedNodes.add(link.source);
-            connectedNodes.add(link.target);
-            connectedLinks.add(link);
-        }
-    });
-
-    svg.selectAll(".node")
-        .attr("fill", node => connectedNodes.has(node) ? "blue" : d3.schemeCategory10[node.layer % 10])
-        .attr("r", node => connectedNodes.has(node) ? 7 : 5);
-
-    svg.selectAll(".link")
-        .attr("stroke", link => connectedLinks.has(link) ? "blue" : "#999")
-        .attr("stroke-opacity", link => connectedLinks.has(link) ? 1 : 0.6);
 }
 
 function resetGraphStyles() {
     svg.selectAll(".node")
-        .attr("fill", d => d3.schemeCategory10[d.layer % 10])
-        .attr("r", 5);
+        .classed("selected-node", false)
+        .classed("selected-neighbor", false)
+        .classed("hovered-node", false)
+        .classed("hovered-neighbor", false);
 
     svg.selectAll(".link")
-        .attr("stroke", "#999")
-        .attr("stroke-opacity", 0.6);
+        .classed("selected-edge", false)
+        .classed("hovered-edge", false);
 }
