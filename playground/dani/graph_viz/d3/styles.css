@@ -16,6 +16,13 @@ body, html {
   overflow: hidden;
   padding: 40px;
   box-sizing: border-box;
+  position: relative;  /* Add this line */
+}
+
+.background {
+  cursor: default;
+  pointer-events: all;
+  fill: transparent;
 }
 
 #graph-inner-container {

@@ -23,6 +23,17 @@ function initializeSVG() {
                     .attr("width", "100%")
                     .attr("height", "100%");
 
+                // Add a background rectangle
+                background = svg.append("rect")
+                    .attr("class", "background")
+                    .style("position", "absolute")
+                    .style("top", "0")
+                    .style("left", "0")
+                    .style("width", "100%")
+                    .style("height", "100%")
+                    .style("z-index", "-1");
+                background.on("click", handleBackgroundClick);
+
                 console.log("SVG created:", svg.node());
                 resolve({ svg, width, height });
             } else {
@@ -163,6 +174,13 @@ function updateGraph(width, height) {
         .on("mouseout", handleNodeLeave);
 }
 
+function handleBackgroundClick() {
+    console.log("Background clicked");
+    selectedNode = null;
+    resetGraphStyles();
+    updateInfoPanel(null);  // Clear the info panel
+}
+
 function drag(simulation) {
     function dragstarted(event) {
         if (!event.active) simulation.alphaTarget(0.3).restart();
@@ -188,6 +206,8 @@ function drag(simulation) {
 }
 
 function handleNodeClick(event, d) {
+    event.stopPropagation();
+    console.log(selectedNode);
     if (selectedNode === d) {
         selectedNode = null;
         resetGraphStyles();
@@ -203,7 +223,6 @@ function handleNodeHover(event, d) {
 }
 
 function handleNodeLeave(event, d) {
-    resetGraphStyles();
     if (selectedNode) {
         highlightNode(selectedNode, 'selected');
     }
@@ -222,20 +241,8 @@ function highlightNode(d, highlightType) {
 
     const connectedLinks = neighbors.edges;
 
-    // Remove all highlight classes first
-    // svg.selectAll(".node")
-    //     .classed("selected-node", false)
-    //     .classed("selected-neighbor", false)
-    //     .classed("hovered-node", false)
-    //     .classed("hovered-neighbor", false);
-
-    // svg.selectAll(".link")
-    //     .classed("selected-edge", false)
-    //     .classed("hovered-edge", false);
-
     // Apply new highlight classes based on highlightType
     if (highlightType === 'selected' || highlightType === 'hovered') {
-        console.log(connectedNodes);
         svg.selectAll(".node")
             .classed(`${highlightType}-node`, node => node === d)
             .classed(`${highlightType}-neighbor`, node => connectedNodes.has(node) && node !== d);
@@ -255,4 +262,6 @@ function resetGraphStyles() {
     svg.selectAll(".link")
         .classed("selected-edge", false)
         .classed("hovered-edge", false);
+
+    selectedNode = null;
 }
