@@ -85,3 +85,29 @@ body, html {
   stroke-opacity: 1;
   stroke-width: 2px;
 }
+
+.node.selected-distant-node,
+.node.selected-distant-neighbor {
+    fill: #c6d9fd;
+    stroke: #8ab4f8;
+    stroke-width: 1.5px;
+}
+
+.node.hovered-distant-node,
+.node.hovered-distant-neighbor {
+    fill: #ffe8cc;
+    stroke: #ffd1a3;
+    stroke-width: 1.5px;
+}
+
+.link.selected-distant-edge {
+    stroke: #c6d9fd;
+    stroke-opacity: 0.8;
+    stroke-width: 1.5px;
+}
+
+.link.hovered-distant-edge {
+    stroke: #ffe8cc;
+    stroke-opacity: 0.8;
+    stroke-width: 1.5px;
+}
