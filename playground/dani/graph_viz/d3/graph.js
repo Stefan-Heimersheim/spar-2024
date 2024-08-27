@@ -157,6 +157,7 @@ function updateGraph(width, height) {
         .data(graph.nodes)
         .join("circle")
         .attr("class", "node")
+        .attr("id", d => d.id)
         .attr("r", nodeRadius)
         .attr("cx", d => nodePositions.get(d.id)?.x || 0)
         .attr("cy", d => nodePositions.get(d.id)?.y || 0)
@@ -207,13 +208,13 @@ function drag(simulation) {
 
 function handleNodeClick(event, d) {
     event.stopPropagation();
-    console.log(selectedNode);
+    resetGraphStyles();
+    unhighlightNode(d);
     if (selectedNode === d) {
         selectedNode = null;
         resetGraphStyles();
     } else {
         selectedNode = d;
-        highlightNode(d, 'selected', false);
     }
     updateInfoPanel(d);
 }
@@ -223,12 +224,31 @@ function handleNodeHover(event, d) {
 }
 
 function handleNodeLeave(event, d) {
+    console.log("Node leave:", d);
+    unhighlightNode(d);
+    resetGraphStyles();
     if (selectedNode) {
         highlightNode(selectedNode, 'selected', false);
     }
 }
 
+function unhighlightNode(d) {
+    d.highlighted = null;
+    const neighbors = nodeNeighbors.get(d.id);
+    const neighborNodeIds = neighbors.nodes;
+    
+    neighborNodeIds.forEach(nodeId => {
+        const node = graph.nodes.find(n => n.id === nodeId);
+        if (node.highlighted) {
+            unhighlightNode(node);
+        }
+    });
+
+}
+
 function highlightNode(d, highlightType, distant = false) {
+    if (highlightType === d.highlighted) return;
+    d.highlighted = highlightType;
     const neighbors = nodeNeighbors.get(d.id);
     const neighborNodeIds = neighbors.nodes;
     const connectedNodes = new Set([d]);
@@ -241,24 +261,18 @@ function highlightNode(d, highlightType, distant = false) {
 
     const connectedLinks = neighbors.edges;
 
-    // Generate class strings
     const nodeClass = distant ? `${highlightType}-distant-node` : `${highlightType}-node`;
-    const neighborClass = distant ? `${highlightType}-distant-neighbor` : `${highlightType}-neighbor`;
     const edgeClass = distant ? `${highlightType}-distant-edge` : `${highlightType}-edge`;
 
-    // Apply new highlight classes based on highlightType
-    if (highlightType === 'selected' || highlightType === 'hovered') {
-        svg.selectAll(".node")
-            .classed(nodeClass, node => node === d)
-            .classed(neighborClass, node => connectedNodes.has(node) && node !== d);
+    nodeSvg = svg.select(`.node[id="${d.id}"]`)
+        .classed(nodeClass, true);
 
-        svg.selectAll(".link")
-            .classed(edgeClass, link => connectedLinks.has(link));
-    }
+    svg.selectAll(".link")
+        .classed(edgeClass, link => connectedLinks.has(link))
 
-    // Highlight distant neighbors
-    connectedNodes.forEach(node => {
-        if (node !== d) {
+    neighborNodeIds.forEach(nodeId => {
+        const node = graph.nodes.find(n => n.id === nodeId);
+        if (node && !node.highlighted) {
             highlightNode(node, highlightType, true);
         }
     });
@@ -266,14 +280,8 @@ function highlightNode(d, highlightType, distant = false) {
 
 function resetGraphStyles() {
     svg.selectAll(".node")
-        .classed("selected-node", false)
-        .classed("selected-neighbor", false)
-        .classed("hovered-node", false)
-        .classed("hovered-neighbor", false);
+        .attr("class", "node");
 
     svg.selectAll(".link")
-        .classed("selected-edge", false)
-        .classed("hovered-edge", false);
-
-    selectedNode = null;
+        .attr("class", "link");
 }
