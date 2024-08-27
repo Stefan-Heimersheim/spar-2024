@@ -20,9 +20,14 @@ def load_model_and_saes(model_name, sae_name, hook_name, device='cuda') -> tuple
 
     saes = []
     for layer in tqdm(list(range(model.cfg.n_layers))):
+        sae_id = (
+            f"blocks.{layer}.{hook_name}"
+            if model_name == "gpt2-small"
+            else f"layer_{layer}/width_16k/canonical"
+        )
         sae, _, _ = SAE.from_pretrained(
             release=sae_name,
-            sae_id=f"blocks.{layer}.{hook_name}",
+            sae_id=sae_id,
             device=device,
         )
         sae.eval()  # prevents error if we're expecting a dead neuron mask for who grads
