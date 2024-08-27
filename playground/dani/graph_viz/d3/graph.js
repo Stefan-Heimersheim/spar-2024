@@ -213,22 +213,22 @@ function handleNodeClick(event, d) {
         resetGraphStyles();
     } else {
         selectedNode = d;
-        highlightNode(d, 'selected');
+        highlightNode(d, 'selected', false);
     }
     updateInfoPanel(d);
 }
 
 function handleNodeHover(event, d) {
-    highlightNode(d, 'hovered');
+    highlightNode(d, 'hovered', false);
 }
 
 function handleNodeLeave(event, d) {
     if (selectedNode) {
-        highlightNode(selectedNode, 'selected');
+        highlightNode(selectedNode, 'selected', false);
     }
 }
 
-function highlightNode(d, highlightType) {
+function highlightNode(d, highlightType, distant = false) {
     const neighbors = nodeNeighbors.get(d.id);
     const neighborNodeIds = neighbors.nodes;
     const connectedNodes = new Set([d]);
@@ -241,15 +241,27 @@ function highlightNode(d, highlightType) {
 
     const connectedLinks = neighbors.edges;
 
+    // Generate class strings
+    const nodeClass = distant ? `${highlightType}-distant-node` : `${highlightType}-node`;
+    const neighborClass = distant ? `${highlightType}-distant-neighbor` : `${highlightType}-neighbor`;
+    const edgeClass = distant ? `${highlightType}-distant-edge` : `${highlightType}-edge`;
+
     // Apply new highlight classes based on highlightType
     if (highlightType === 'selected' || highlightType === 'hovered') {
         svg.selectAll(".node")
-            .classed(`${highlightType}-node`, node => node === d)
-            .classed(`${highlightType}-neighbor`, node => connectedNodes.has(node) && node !== d);
+            .classed(nodeClass, node => node === d)
+            .classed(neighborClass, node => connectedNodes.has(node) && node !== d);
 
         svg.selectAll(".link")
-            .classed(`${highlightType}-edge`, link => connectedLinks.has(link));
+            .classed(edgeClass, link => connectedLinks.has(link));
     }
+
+    // Highlight distant neighbors
+    connectedNodes.forEach(node => {
+        if (node !== d) {
+            highlightNode(node, highlightType, true);
+        }
+    });
 }
 
 function resetGraphStyles() {
