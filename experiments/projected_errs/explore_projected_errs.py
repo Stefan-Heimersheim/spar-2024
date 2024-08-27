@@ -24,267 +24,108 @@ if t.backends.mps.is_available():
 else:
     device = "cuda" if t.cuda.is_available() else "cpu"
 # %%
-data = np.load("artefacts/projected_errs/total_num_toks__2097152.npz")
-projection_sums = data["projection_sums"]
-counts = data['counts'] 
-ratio = projection_sums / counts
+pearson_corrs = np.load("artefacts/similarity_measures/pearson_correlation/res_jb_sae_feature_similarity_pearson_correlation_100M_0.1.npz")["arr_0"]
+# %%
+disappeared_feature_mask = np.max(pearson_corrs, axis=2) <= 0.4
 
 # %%
-# as per https://spar2024.slack.com/archives/C0794GNT8KS/p1724432685121449?thread_ts=1724427023.459439&cid=C0794GNT8KS
-# need to find the length of the feature directions to compare
-def get_decoder_tensor() -> t.Tensor:
-    print("Loading SAE decoder tensor")
-    decoder_arr = []
-    for layer in tqdm(list(range(num_layers))):
-        sae_id = f"blocks.{layer}.hook_resid_pre"
-        sae, _, _ = SAE.from_pretrained(
-            release="gpt2-small-res-jb",
-            sae_id=sae_id,
-            device=device
-        )
-        sae.eval()  # prevents error if we're expecting a dead neuron mask for who grads
-        decoder_arr.append(sae.W_dec)
-    decoders = t.stack(decoder_arr, dim=0)
-    return decoders
-decoder_weights = get_decoder_tensor()
+projected_data = np.load("artefacts/projected_errs/total_num_toks__16777216.npz")
+projection_sums = projected_data["projection_sums"]
+projection_counts = projected_data['counts'] 
+avg_err_projection_onto_feat = projection_sums / projection_counts
+
 # %%
-layer_data = ratio[0]
-
-plt.figure(figsize=(12, 6))
-
-# Create the histogram and KDE plot
-sns.histplot(layer_data, kde=True, stat="density", kde_kws={"bw_adjust": 0.5})
-
-plt.title("Distribution of SAE Feature Projections (Layer 0)")
-plt.xlabel("Projection Magnitude")
-plt.ylabel("Density")
-
-# Add vertical lines for some summary statistics
-plt.axvline(layer_data.mean(), color='r', linestyle='dashed', linewidth=1, label=f'Mean: {layer_data.mean():.2f}')
-plt.axvline(np.median(layer_data), color='g', linestyle='dashed', linewidth=1, label=f'Median: {np.median(layer_data):.2f}')
-
-plt.legend()
-plt.tight_layout()
-plt.show()
+masked_feats_data = np.load("artefacts/projected_errs/avg_masked_feats__total_num_toks__16777216.npz")
+activation_sums = masked_feats_data["activation_sums"]
+activation_counts = masked_feats_data["counts"]
+avg_feat = masked_feats_data["ratios"]
 # %%
-fig, axs = plt.subplots(3, 4, figsize=(20, 15))
-fig.suptitle("Distribution of SAE Feature Projections by Layer", fontsize=16)
+import numpy as np
+import matplotlib.pyplot as plt
 
-def kde_area_proportion(x, y, lower, upper):
-    mask = (x >= lower) & (x <= upper)
-    total_area = integrate.trapz(y, x)
-    section_area = integrate.trapz(y[mask], x[mask])
-    return section_area / total_area
+def create_histogram_overlay_plots(avg_err_projection_onto_feat, avg_feat, disappeared_feature_mask):
+    assert avg_err_projection_onto_feat.shape == avg_feat.shape == disappeared_feature_mask.shape
+    num_plots, _ = avg_err_projection_onto_feat.shape
 
-for i, ax in enumerate(axs.flatten()):
-    if i < ratio.shape[0]:
-        layer_data = ratio[i]
-        
-        # Calculate KDE
-        kde = sns.kdeplot(layer_data, ax=ax, color='blue')
-        
-        # Get the KDE curve data
-        line = kde.lines[0]
-        x, y = line.get_data()
-        
-        # Calculate the area proportion
-        proportion = kde_area_proportion(x, y, 0.9, 1.1)
-        
-        # Color the section between 0.9 and 1.1
-        ax.fill_between(x, y, where=(x >= 0.9) & (x <= 1.1), color='yellow', alpha=0.5)
-        
-        # Add text for proportion
-        ax.text(1.0, ax.get_ylim()[1], f'{proportion:.3f}', 
-                horizontalalignment='center', verticalalignment='bottom')
-        
-        ax.set_title(f"Layer {i}")
-        ax.set_xlim(0, 2)  # Adjust this range if needed
-    else:
-        ax.axis('off')
+    fig, axes = plt.subplots(4, 3, figsize=(15, 20))  # 4x3 grid for 11 plots (12th will be empty)
+    axes = axes.flatten()
 
-plt.tight_layout()
-plt.subplots_adjust(top=0.93)
-plt.show()
-# %%
-fig, axs = plt.subplots(3, 4, figsize=(20, 15))
-fig.suptitle("Distribution of SAE Feature Projections by Layer", fontsize=16)
+    # Create empty lists to store plot objects for the legend
+    blue_plots = []
+    red_plots = []
 
-def kde_area_proportion(x, y, lower, upper):
-    mask = (x >= lower) & (x <= upper)
-    total_area = integrate.trapz(y, x)
-    section_area = integrate.trapz(y[mask], x[mask])
-    return section_area / total_area
-
-for i, ax in enumerate(axs.flatten()):
-    if i < ratio.shape[0]:
-        layer_data = ratio[i]
+    for idx in range(num_plots):
+        ax = axes[idx]
+        
+        # Get the mask for this index
+        mask = disappeared_feature_mask[idx, :]
+        
+        # Filter the data based on the mask and remove NaN values
+        err_data = avg_err_projection_onto_feat[idx, mask]
+        feat_data = avg_feat[idx, mask]
         
         # Remove NaN values
-        layer_data = layer_data[~np.isnan(layer_data)]
+        err_data = err_data[~np.isnan(err_data)]
+        feat_data = feat_data[~np.isnan(feat_data)]
         
-        if len(layer_data) > 0:  # Check if there's any data left after removing NaNs
-            # Calculate KDE
-            kde = sns.kdeplot(layer_data, ax=ax, color='blue')
-            
-            # Get the KDE curve data
-            line = kde.lines[0]
-            x, y = line.get_data()
-            
-            # Calculate the area proportion
-            proportion = kde_area_proportion(x, y, 0.9, 1.1)
-            
-            # Color the section between 0.9 and 1.1
-            ax.fill_between(x, y, where=(x >= 0.9) & (x <= 1.1), color='yellow', alpha=0.5)
-            
-            # Find the y-value at x=1.0 for text placement
-            idx = np.argmin(np.abs(x - 1.0))
-            y_text = y[idx]
-            
-            # Add text for proportion on top of the curve
-            ax.text(1.0, y_text, f'{proportion:.3f}', 
-                    horizontalalignment='center', verticalalignment='bottom',
-                    bbox=dict(facecolor='white', edgecolor='none', alpha=0.7))
-            
-            ax.set_title(f"Layer {i}")
-            ax.set_xlim(0, 2)  # Adjust this range if needed
-        else:
-            ax.text(0.5, 0.5, "No valid data", ha='center', va='center')
-            ax.set_title(f"Layer {i}")
-    else:
-        ax.axis('off')
+        if len(err_data) == 0 and len(feat_data) == 0:
+            ax.text(0.5, 0.5, 'No valid data', ha='center', va='center')
+            ax.set_title(f'Layer {idx}')
+            continue
+        
+        # Combine all data for percentile calculation
+        all_data = np.concatenate([err_data, feat_data])
+        
+        # Calculate 97.5th percentile for upper x-axis limit
+        upper_limit = np.percentile(all_data, 97.5)
+        
+        # Set lower limit to -0.2
+        lower_limit = -0.2
+        
+        # Determine the range for bins
+        bins = np.arange(lower_limit, upper_limit + 0.2, 0.2)
+        
+        # Plot histogram for avg_err_projection_onto_feat
+        blue_plot = ax.hist(err_data, bins=bins, alpha=0.5, color='blue', label='Avg Next Layer Error Projection')
+        
+        # Plot histogram for avg_feat
+        red_plot = ax.hist(feat_data, bins=bins, alpha=0.5, color='red', label='Average Prev Layer Feature')
+        
+        # Store plot objects for legend
+        blue_plots.append(blue_plot)
+        red_plots.append(red_plot)
+        
+        # Set x-axis limits
+        ax.set_xlim(lower_limit, upper_limit)
+        
+        # Update the title to show "Layer {idx}"
+        ax.set_title(f'Layer {idx}')
+        
+        # Set x-label to "Magnitude" and y-label
+        ax.set_xlabel('Magnitude')
+        ax.set_ylabel('Frequency')
 
-plt.tight_layout()
-plt.subplots_adjust(top=0.93)
-plt.show()
-# %%
-import torch
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-from scipy import integrate
-from scipy import stats
+    # Remove the empty 12th subplot
+    fig.delaxes(axes[-1])
 
-# Assuming your matrix is named 'data' and has shape (11, 24560)
-# If not, replace 'data' with your actual variable name
-data = ratio
+    # Create a single legend for the entire figure
+    fig.legend([blue_plots[0][2][0], red_plots[0][2][0]], 
+               ['Avg Next Layer Error Projection', 'Average Prev Layer Feature'],
+               loc='upper center', bbox_to_anchor=(0.5, -0.05), ncol=2)
 
-def calculate_area_percentage(kde, lower, upper):
-    # Calculate total area
-    total_area, _ = integrate.quad(kde.pdf, kde.dataset.min(), kde.dataset.max())
-    
-    # Calculate area between lower and upper bounds
-    area_between, _ = integrate.quad(kde.pdf, lower, upper)
-    
-    # Calculate percentage
-    percentage = (area_between / total_area) * 100
-    return percentage
+    plt.tight_layout()
+    # Adjust the bottom margin to make room for the legend
+    plt.subplots_adjust(bottom=0.1)
+    plt.show()
 
-# Create a 4x3 grid of subplots (11 in total, last one will be empty)
-fig, axs = plt.subplots(4, 3, figsize=(15, 20))
-axs = axs.flatten()
-
-for i in range(11):
-    # Get data for current layer and remove NaN values
-    layer_data = data[i]
-    layer_data = layer_data[~np.isnan(layer_data)]
-    
-    if len(layer_data) == 0:
-        axs[i].text(0.5, 0.5, 'No valid data', ha='center', va='center')
-        axs[i].set_title(f'Layer {i+1}')
-        continue
-    
-    # Create KDE plot
-    sns.kdeplot(layer_data, ax=axs[i])
-    
-    # Calculate percentage of area between 0.9 and 1.1
-    kde = stats.gaussian_kde(layer_data)
-    percentage = calculate_area_percentage(kde, 0.9, 1.1)
-    
-    # Add annotation
-    axs[i].annotate(f'{percentage:.2f}% area\nbetween 0.9-1.1', 
-                    xy=(0.7, 0.95), xycoords='axes fraction',
-                    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8))
-    
-    axs[i].set_title(f'Layer {i+1}')
-    axs[i].set_xlabel('Average Magnitude')
-    axs[i].set_ylabel('Density')
-
-# Remove the last (empty) subplot
-fig.delaxes(axs[11])
-
-plt.tight_layout()
-plt.show()
-# %%
-import torch
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-from scipy import stats, integrate
-
-# Assuming your matrix is named 'data' and has shape (11, 24560)
-# If not, replace 'data' with your actual variable name
-data = ratio
-
-def calculate_area_percentage(kde, lower, upper):
-    # Calculate total area
-    total_area, _ = integrate.quad(kde.pdf, kde.dataset.min(), kde.dataset.max())
-    
-    # Calculate area between lower and upper bounds
-    area_between, _ = integrate.quad(kde.pdf, lower, upper)
-    
-    # Calculate percentage
-    percentage = (area_between / total_area) * 100
-    return percentage
-
-def find_99_percent_range(kde):
-    def area_to_99(x):
-        return calculate_area_percentage(kde, -x, x) - 99
-
-    from scipy.optimize import brentq
-    x_99 = brentq(area_to_99, 0, 1000)  # Adjust upper bound if necessary
-    return -x_99, x_99
-
-# Create a 4x3 grid of subplots (11 in total, last one will be empty)
-fig, axs = plt.subplots(4, 3, figsize=(15, 20))
-axs = axs.flatten()
-
-for i in range(11):
-    # Get data for current layer and remove NaN values
-    layer_data = data[i]
-    layer_data = layer_data[~np.isnan(layer_data)]
-    
-    if len(layer_data) == 0:
-        axs[i].text(0.5, 0.5, 'No valid data', ha='center', va='center')
-        axs[i].set_title(f'Layer {i+1}')
-        continue
-    
-    # Create KDE
-    kde = stats.gaussian_kde(layer_data)
-    
-    # Find range that covers 99% of the area
-    x_min, x_max = find_99_percent_range(kde)
-    
-    # Create KDE plot with adjusted x-range
-    x = np.linspace(x_min, x_max, 1000)
-    axs[i].plot(x, kde(x))
-    axs[i].set_xlim(x_min, x_max)
-    
-    # Calculate percentage of area between 0.9 and 1.1
-    percentage = calculate_area_percentage(kde, 0.9, 1.1)
-    
-    # Add annotation
-    axs[i].annotate(f'{percentage:.2f}% area\nbetween 0.9-1.1', 
-                    xy=(0.7, 0.95), xycoords='axes fraction',
-                    bbox=dict(boxstyle="round,pad=0.3", fc="white", ec="gray", alpha=0.8))
-    
-    axs[i].set_title(f'Layer {i+1}')
-    axs[i].set_xlabel('Average Magnitude')
-    axs[i].set_ylabel('Density')
-
-# Remove the last (empty) subplot
-fig.delaxes(axs[11])
-
-plt.tight_layout()
-plt.show()
-
+# Example usage:
+# avg_err_projection_onto_feat = np.random.randn(11, 2000)
+# avg_feat = np.random.randn(11, 2000)
+# disappeared_feature_mask = np.random.choice([True, False], size=(11, 2000))
+# # Introduce some NaN values and outliers
+# avg_err_projection_onto_feat[np.random.rand(*avg_err_projection_onto_feat.shape) < 0.1] = np.nan
+# avg_feat[np.random.rand(*avg_feat.shape) < 0.1] = np.nan
+# avg_err_projection_onto_feat[np.random.rand(*avg_err_projection_onto_feat.shape) < 0.01] = 1000
+# avg_feat[np.random.rand(*avg_feat.shape) < 0.01] = -1000
+# create_histogram_overlay_plots(avg_err_projection_onto_feat, avg_feat, disappeared_feature_mask)
 # %%
