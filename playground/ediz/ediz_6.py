@@ -1,3 +1,4 @@
+# %%
 """
 This script performs the following operations on a graph represented by a 3D numpy array loaded from a .npz file:
 
@@ -57,6 +58,76 @@ import os
 import pickle
 import leidenalg as la
 import igraph as ig
+import einops
+import plotly.graph_objects as go
+
+def add_explanations_to_graph(graph: nx.DiGraph) -> nx.DiGraph:
+    # Load explanations
+    sae_name = "res_jb_sae"
+    with open(f'../../artefacts/explanations/{sae_name}_explanations.pkl', 'rb') as f:
+        explanations = pickle.load(f)
+    for node, attr in graph.nodes(data=True):
+        graph.nodes[node]['explanation'] = explanations[attr['layer']][attr['feature']]
+
+def save_explanation_graph(graph: nx.DiGraph, file_path: str) -> None:
+    layout = nx.multipartite_layout(graph, subset_key='layer')
+    
+    # Each edge is an individual trace, otherwise the width must be the same
+    edge_traces = [go.Scatter(
+        x=[layout[v][0], layout[w][0]],
+        y=[layout[v][1], layout[w][1]],
+        line=dict(width=5 * attr['weight'], color='red'),
+        mode='lines',
+        # TODO: Add intermediate points on edge for hover info
+    ) for v, w, attr in graph.edges(data=True)]
+
+    node_x, node_y = list(zip(*[layout[node] for node in graph.nodes()]))
+    feat = [node for node in graph.nodes]
+    node_colors = ['blue' if attr.get('is_downstream', False) else 'green' for _, attr in graph.nodes(data=True)]
+    hover = [f'Explanation: {attr["explanation"]}' for _, attr in graph.nodes(data=True)]
+
+    node_trace = go.Scatter(
+        x=node_x, y=node_y,
+        mode='markers+text',
+        hoverinfo='text',
+        marker=dict(size=10, color=node_colors),
+        text=feat,
+        textfont=dict(size=8),
+        hovertext=hover,
+        textposition='bottom center'
+    )
+
+    fig = go.Figure(data=[*edge_traces, node_trace],
+                layout=go.Layout(
+                    title='SAE Feature Interaction Graph',
+                    titlefont_size=16,
+                    showlegend=False,
+                    margin=dict(b=0,l=0,r=0,t=30),
+                    xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                    yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
+                    )
+    fig.write_html(file_path)
+
+def apply_mask_with_einops(mask: np.ndarray, data: np.ndarray, i: int) -> np.ndarray:
+    """
+    Optimized function using einops to broadcast the mask from (12, 24k) to (12, 24k, 24k).
+    """
+    # Ensure i is within bounds
+    if i < 0 or i >= mask.shape[0]:
+        raise IndexError("Index i is out of bounds for the mask array.")
+    
+    # Get the mask slice for the given index i
+    current_mask = mask[i]  # shape = (12, 24k)
+
+    # Use einops to repeat the mask across a new dimension
+    expanded_mask_1 = einops.repeat(current_mask, 'x y -> x y z', z=data.shape[2])
+    expanded_mask_2 = einops.repeat(current_mask, 'x y -> x z y', z=data.shape[2])
+
+    # Apply the mask to the data
+    data[~expanded_mask_1] = 0
+    data[~expanded_mask_2] = 0
+
+    return data
 
 def save_graph(graph: nx.Graph, graph_file: str) -> None:
     """
@@ -82,7 +153,31 @@ def load_graph(graph_file: str) -> nx.Graph:
     with open(graph_file, 'rb') as f:
         return pickle.load(f)
 
-def load_graph_from_npz(npz_file: str, threshold: float = 0.0, weighted: bool = True) -> nx.DiGraph:
+def remove_isolated_nodes(G):
+    """
+    Remove nodes with no edges connected to them (isolated nodes) from the graph.
+
+    Parameters:
+    G (networkx.Graph): A NetworkX graph.
+
+    Returns:
+    networkx.Graph: A new graph with isolated nodes removed.
+    """
+    # Create a copy of the graph to avoid modifying the original graph
+    G_copy = G.copy()
+    
+    # Find all isolated nodes (nodes with degree 0)
+    isolated_nodes = [node for node, degree in dict(G_copy.degree()).items() if degree == 0]
+    print(f"Number of edgeless nodes : {len(isolated_nodes)}")
+    
+    
+    # Remove the isolated nodes from the graph
+    G_copy.remove_nodes_from(isolated_nodes)
+    print(f"Number of nodes remaining : {G_copy.number_of_nodes()}")
+    
+    return G_copy
+
+def load_graph_from_npz(npz_file: str, threshold: float = 0.0, mask_file: str = None, mask_index:int = 0) -> nx.DiGraph:
     """
     Loads a graph from a .npz file containing a 3D numpy array.
     The array represents edge weights between nodes across layers.
@@ -98,11 +193,21 @@ def load_graph_from_npz(npz_file: str, threshold: float = 0.0, weighted: bool = 
     if not os.path.exists(npz_file):
         print(f"Error: The file '{npz_file}' does not exist.")
         return nx.DiGraph()
+    
     print(f"Loading: {npz_file}")
-    data = np.load(npz_file)
+    array = np.load(npz_file)['arr_0']
     print(f"Finished loading {npz_file}!")
-    array = data['arr_0']  # Assuming the array is stored under 'arr_0'
-    print(1)
+    mask = None
+    if mask_file is not None:
+        if not os.path.exists(npz_file):
+            print(f"Error: The file '{mask_file}' does not exist.")
+            print("Continuing without mask")
+        else:
+            print(f"Loading: {mask_file}")
+            mask = np.load(mask_file)['arr_0'][mask_index]
+            print(f"Finished loading {mask_file}!")
+            # array = apply_mask_with_einops(mask,array,mask_index)
+
     num_layer_pairs, d_sae, _ = array.shape
 
     print(f"Found np array of shape: {array.shape}")
@@ -124,11 +229,16 @@ def load_graph_from_npz(npz_file: str, threshold: float = 0.0, weighted: bool = 
         for j in range(d_sae):
             for k in range(d_sae):
                 weight = array[i, j, k]
-                if weight > threshold:
-                    if weighted:
-                        G.add_edge((i, j), (i + 1, k), weight=weight)
-                    else:
-                        G.add_edge((i, j), (i + 1, k))
+                if mask is None:
+                    skip = False
+                else:
+                    skip = mask[i][j] and mask[i+1][k]
+                if weight > threshold and skip == False:
+                    G.add_edge((i, j), (i + 1, k), weight=weight)
+
+    # Remove edgeless nodes:
+    G = remove_isolated_nodes(G)
+    add_explanations_to_graph(G)
 
     # Free memory by deleting the array and triggering garbage collection
     del array
@@ -148,7 +258,31 @@ def perform_louvain_partition(graph: nx.Graph) -> list[set]:
     """
     return louvain_communities(graph, seed=42)
 
-def perform_leiden_partition(graph: nx.Graph, quality_function=la.CPMVertexPartition, resolution_parameter=None) -> list[set]:
+def extract_partition_subgraph(partition: list[set], partition_index: int, graph: nx.Graph) -> nx.Graph:
+    """
+    Extracts a subgraph containing only the nodes in the specified partition index.
+
+    Args:
+        partition: The partition returned by the Leiden algorithm (a list of sets of nodes).
+        partition_index: The index of the partition to extract.
+        graph: The original NetworkX graph.
+
+    Returns:
+        A NetworkX subgraph containing only the nodes in the specified partition.
+    """
+    # Check if the partition index is valid
+    if partition_index < 0 or partition_index >= len(partition):
+        raise ValueError("Invalid partition index.")
+
+    # Get the nodes in the specified partition
+    partition_nodes = partition[partition_index]
+
+    # Create a subgraph containing only these nodes
+    subgraph = graph.subgraph(partition_nodes).copy()
+
+    return subgraph
+
+def perform_leiden_partition(graph: nx.Graph, quality_function=la.CPMVertexPartition, resolution_parameter:float=None, weighted:bool=True) -> list[set]:
     """
     Performs Leiden community detection on the graph using a specified quality function.
     If the graph has edge weights, they will be used in the partitioning process.
@@ -173,7 +307,7 @@ def perform_leiden_partition(graph: nx.Graph, quality_function=la.CPMVertexParti
     ig_graph.add_edges([(mapping[u], mapping[v]) for u, v in graph.edges()])
 
     # Extract weights if they exist
-    if nx.get_edge_attributes(graph, 'weight'):
+    if nx.get_edge_attributes(graph, 'weight') and weighted:
         print(f"Considering weights in Leiden.")
         weights = list(nx.get_edge_attributes(graph, 'weight').values())
     else:
@@ -181,15 +315,14 @@ def perform_leiden_partition(graph: nx.Graph, quality_function=la.CPMVertexParti
         weights = None  # No weights, will proceed without them
 
     # Perform Leiden community detection using the specified quality function and weights
-    if resolution_parameter is not None:
-        partition = la.find_partition(ig_graph, quality_function, weights=weights, seed=42, resolution_parameter=resolution_parameter)
-    else:
-        partition = la.find_partition(ig_graph, quality_function, weights=weights, seed=42)
+    partition = la.find_partition(ig_graph, quality_function, weights=weights, seed=42, resolution_parameter=resolution_parameter)
+
 
     # Convert the result back to a list of sets of nodes using the reverse mapping
     communities = [set(reverse_mapping[node] for node in community) for community in partition]
 
     return communities
+
 
 def plot_partition_histogram(partition: list[set], output_file: str = 'partition_histogram.png', log_y: bool = False) -> None:
     """
@@ -322,7 +455,7 @@ def plot_nx_graph_with_mpl_temp(G: nx.Graph, filename: str = "plot.png", thresho
 
 
 def draw_all_partitions(graph: nx.Graph, partition: list[set], num_layers: int, 
-                        num_features: int, output_folder: str = 'partition_graphs') -> None:
+                        num_features: int, output_folder: str = 'partition_graphs', do_plotly:bool=False) -> None:
     """
     Draws and saves a plot of all partition subgraphs. Each partition is saved as a separate image file
     in a newly created folder.
@@ -337,6 +470,9 @@ def draw_all_partitions(graph: nx.Graph, partition: list[set], num_layers: int,
     # Create the output folder if it doesn't exist
     if not os.path.exists(output_folder):
         os.makedirs(output_folder)
+    plotly_folder = os.path.join(output_folder,"plotly")
+    if do_plotly and not os.path.exists(plotly_folder):
+        os.makedirs(plotly_folder)
 
     num_size_one = 0
     num_too_big = 0
@@ -349,12 +485,16 @@ def draw_all_partitions(graph: nx.Graph, partition: list[set], num_layers: int,
 
         subgraph = graph.subgraph(part)
         output_file = os.path.join(output_folder, f'partition_{idx + 1}.png')
+        plotly_output_file = os.path.join(plotly_folder, f'partition_{idx + 1}.html')
         
         try:
             # Use the custom plotting function to visualize the subgraph
             plot_nx_graph_with_mpl_temp(subgraph, filename=output_file)
             print(f"Partition {idx + 1} saved to {output_file}")
             num_valid += 1
+            if do_plotly:
+                save_explanation_graph(subgraph, plotly_output_file)
+                print(f"Plotly graph saved to {plotly_output_file}")
         except ValueError as e:
             #print(f"Skipping partition {idx + 1} due to error: {e}")
             num_too_big += 1
@@ -390,11 +530,11 @@ def read_partition_from_file(filename: str) -> list[set]:
     """
     with open(filename, 'rb') as f:
         partition = pickle.load(f)
-    
+
     return partition
 
 
-def main(npz_file: str, graph_file: str, threshold: float = 0.0) -> None:
+def main(npz_file: str, graph_file: str, file_name:str, mask_file:str = None, partition_method:str="louvain", resolution_parameter:float=None, quality_function=la.ModularityVertexPartition, weighted_partition:bool=True, threshold: float = 0.0) -> None:
     """
     Main function to load the graph, perform Louvain partitioning, and visualize the results.
 
@@ -404,40 +544,58 @@ def main(npz_file: str, graph_file: str, threshold: float = 0.0) -> None:
         threshold: Minimum edge weight to include an edge in the graph.
     """
     # Check if the graph file exists
-    if os.path.exists(graph_file):
+    if False and os.path.exists(graph_file):
         print(f"Loading graph from {graph_file}...")
         graph = load_graph(graph_file)
+        print(f"Graph loaded: Number of nodes : {graph.number_of_nodes()}")
+        # These are temporary for graphs that lack explanations or pruning
+        # graph = remove_isolated_nodes(graph)
+        # graph = add_explanations_to_graph(graph)
+        # save_graph(graph, graph_file)
     else:
         print(f"Graph file not found. Creating graph from {npz_file}...")
-        graph = load_graph_from_npz(npz_file, threshold, weighted=False)
+        graph = load_graph_from_npz(npz_file, threshold, mask_file=mask_file)
         save_graph(graph, graph_file)
         print(f"Graph saved to {graph_file}.")
 
-    #print("Performing leiden partition")
-    partition = perform_leiden_partition(graph, quality_function=la.CPMVertexPartition, resolution_parameter=.5)
-    
-    # print("Performing louvain partition")
-    partition = perform_louvain_partition(graph)
-    
-    save_partition_to_file(partition,filename="partitions/pearson_louvain_threshold_0.9.pkl")
+    if partition_method == "leiden":
+        print("Performing Leiden partition")
+        if quality_function == la.CPMVertexPartition and resolution_parameter is not None:
+            resolution_parameter = 0.1
+            print(f"Defaulting to resolution : {resolution_parameter}")
+            
+        partition = perform_leiden_partition(graph, quality_function=quality_function, resolution_parameter=resolution_parameter, weighted=weighted_partition)
 
-    # partition = read_partition_from_file(filename="partitions/pearson_leiden_cpm_resolution_0.01.pkl")
+    elif partition_method == "louvain":
+        print("Performing louvain partition")
+        partition = perform_louvain_partition(graph)
 
+    save_partition_to_file(partition,filename=f"partitions/{file_name}.pkl")
+
+    #partition = read_partition_from_file(filename="partitions/pearson_leiden_cpm_resolution_0.01.pkl")
+    print("Finished loading/making partition")
 
     #print("Plotting partition histogram")
-    plot_partition_histogram(partition, output_file="histograms/pearson_louvain_threshold_0.9.png")
+    plot_partition_histogram(partition, output_file=f"histograms/{file_name}.png")
+    print("Plotted partition histogram!")
     
     num_layers = max(nx.get_node_attributes(graph, 'layer').values()) + 1
     num_features = len(set(attr['feature'] for _, attr in graph.nodes(data=True)))
     
     print("Drawing all partitions")
-    draw_all_partitions(graph, partition, num_layers, num_features, output_folder="pearson_louvain_threshold_0.9")
+    draw_all_partitions(graph, partition, num_layers, num_features, output_folder=f"community_images/{file_name}", do_plotly=True)
 
     print("Done!")
 
 # Example usage
 if __name__ == "__main__":
-    npz_file = 'np_arrays/res_jb_sae_feature_similarity_pearson_correlation_1M_0.0_0.1.npz'  # Replace with your file path
-    graph_file = 'graphs/res_jb_sae_feature_similarity_pearson_correlation_1M_threshold_0.9.pkl'  # Replace with your desired graph file path
-    threshold = 0.9  # Replace with your desired threshold
-    main(npz_file, graph_file, threshold)
+    # npz_file = 'np_arrays/res_jb_sae_feature_similarity_pearson_correlation_1M_0.0_0.1.npz'  # Replace with your file path
+    # graph_file =  'graphs/res_jb_sae_feature_similarity_pearson_correlation_1M_threshold_0.9.pkl' # Replace with your desired graph file path
+    # mask_file = "../../artefacts/active_features/res_jb_sae_active_features_rel_0.0_100_last.npz"
+    # threshold = 0.9  # Replace with your desired threshold
+    # file_name = "pearson_louvain_threshold_0.9_plotly"
+    main(npz_file='../../artefacts/similarity_measures/necessity_relative_activation/res_jb_sae_feature_similarity_necessity_relative_activation_10M_0.2_0.1.npz',
+        graph_file='graphs/res_jb_sae_feature_similarity_necessity_10M_relative_activation_0.2_threshold_0.99.pkl',
+        file_name="necessity_louvain_threshold_0.99_plotly",
+        partition_method="louvain",
+        threshold=0.99)
