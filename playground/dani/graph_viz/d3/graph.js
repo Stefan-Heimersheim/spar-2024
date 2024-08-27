@@ -2,7 +2,7 @@ function initializeSVG() {
     console.log("Initializing SVG...");
     return new Promise(resolve => {
         const checkDimensions = () => {
-            const container = document.getElementById('graph-container');
+            const container = document.getElementById('graph-inner-container');
             if (!container) {
                 console.error("Graph container not found");
                 resolve(null);
@@ -18,10 +18,21 @@ function initializeSVG() {
             console.log("Container dimensions:", width, height);
 
             if (width > 0 && height > 0) {
-                const svg = d3.select("#graph-container")
+                const svg = d3.select("#graph-inner-container")
                     .append("svg")
                     .attr("width", "100%")
                     .attr("height", "100%");
+
+                // Add a background rectangle
+                background = svg.append("rect")
+                    .attr("class", "background")
+                    .style("position", "absolute")
+                    .style("top", "0")
+                    .style("left", "0")
+                    .style("width", "100%")
+                    .style("height", "100%")
+                    .style("z-index", "-1");
+                background.on("click", handleBackgroundClick);
 
                 console.log("SVG created:", svg.node());
                 resolve({ svg, width, height });
@@ -33,14 +44,7 @@ function initializeSVG() {
     });
 }
 
-function updateGraph(svg, width, height) {
-    console.log("Updating graph");
-
-    const layerCount = 12; // Assuming 12 layers for GPT2
-    const layerHeight = height / layerCount;
-    const nodeRadius = 5;
-
-    // Group nodes by layer
+function getNodesByLayerFeatureIndex(graph) {
     const nodesByLayer = {};
     graph.nodes.forEach(node => {
         if (!nodesByLayer[node.layer]) {
@@ -49,46 +53,132 @@ function updateGraph(svg, width, height) {
         nodesByLayer[node.layer].push(node);
     });
 
-    // Position nodes
-    Object.keys(nodesByLayer).forEach((layer, layerIndex) => {
-        const nodesInLayer = nodesByLayer[layer];
-        const layerY = layerIndex * layerHeight + layerHeight / 2;
-        
-        nodesInLayer.forEach((node, nodeIndex) => {
-            const layerWidth = width - 2 * nodeRadius;
-            node.x = (nodeIndex / (nodesInLayer.length - 1)) * layerWidth + nodeRadius;
-            node.y = layerY;
+    Object.keys(nodesByLayer).forEach(layer => {
+        nodesByLayer[layer].sort((a, b) => a.feature - b.feature);
+    });
+
+    return nodesByLayer;
+}
+
+function getNodesByLayerMinimizeCrossings(graph) {
+    const nodesByLayer = {};
+    graph.nodes.forEach(node => {
+        if (!nodesByLayer[node.layer]) {
+            nodesByLayer[node.layer] = [];
+        }
+        nodesByLayer[node.layer].push(node);
+    });
+
+    Object.keys(nodesByLayer).forEach(layer => {
+        nodesByLayer[layer].sort((a, b) => {
+            const aConnections = graph.links.filter(link => link.source === a || link.target === a).length;
+            const bConnections = graph.links.filter(link => link.source === b || link.target === b).length;
+            return bConnections - aConnections;
         });
     });
 
-    const link = svg.selectAll(".link")
-        .data(graph.links)
-        .join("line")
-        .attr("class", "link")
-        .attr("stroke-width", d => Math.sqrt(d.similarity) * 2)
-        .attr("x1", d => d.source.x)
-        .attr("y1", d => d.source.y)
-        .attr("x2", d => d.target.x)
-        .attr("y2", d => d.target.y);
+    return nodesByLayer;
+}
 
+function updateGraph(width, height) {
+    console.log("Updating graph");
+
+    const innerContainer = document.getElementById('graph-inner-container');
+    const { width: innerWidth, height: innerHeight } = innerContainer.getBoundingClientRect();
+
+    // Update SVG dimensions
+    svg.attr("width", innerWidth).attr("height", innerHeight);
+
+    const layerCount = 12; // 0 to 11
+    const nodeRadius = 5;
+    const margin = {
+        top: 20,
+        bottom: 20,
+        left: 20,
+        right: 20
+    };
+
+    const sortMethod = document.querySelector('input[name="layer-sort"]:checked').value;
+    const nodesByLayer = sortMethod === 'feature-index' 
+        ? getNodesByLayerFeatureIndex(graph) 
+        : getNodesByLayerMinimizeCrossings(graph);
+
+    const availableWidth = innerWidth - margin.left - margin.right;
+    const availableHeight = innerHeight - margin.top - margin.bottom;
+    const layerHeight = availableHeight / (layerCount - 1);
+
+    // Create a map of node IDs to their positions
+    const nodePositions = new Map();
+
+    // Position nodes
+    Object.keys(nodesByLayer).forEach((layer) => {
+        const layerIndex = parseInt(layer);
+        const nodesInLayer = nodesByLayer[layer];
+        const layerY = innerHeight - margin.bottom - layerIndex * layerHeight;
+        
+        nodesInLayer.forEach((node, nodeIndex) => {
+            const nodeSpacing = availableWidth / (nodesInLayer.length + 1);
+            const x = margin.left + (nodeIndex + 1) * nodeSpacing;
+            const y = layerY;
+            nodePositions.set(node.id, { x, y, renderOrder: x });
+        });
+    });
+
+    // Update links
+    const link = svg.selectAll(".link")
+    .data(graph.links)
+    .join("line")
+    .attr("class", "link")
+    .attr("stroke-width", d => Math.sqrt(d.similarity) * 2)
+    .attr("x1", d => {
+        const x = nodePositions.get(d.source)?.x;
+        if (x === undefined) console.log("Missing source node:", d.source);
+        return x || 0;
+    })
+    .attr("y1", d => {
+        const y = nodePositions.get(d.source)?.y;
+        if (y === undefined) console.log("Missing source node:", d.source);
+        return y || 0;
+    })
+    .attr("x2", d => {
+        const x = nodePositions.get(d.target)?.x;
+        if (x === undefined) console.log("Missing target node:", d.target);
+        return x || 0;
+    })
+    .attr("y2", d => {
+        const y = nodePositions.get(d.target)?.y;
+        if (y === undefined) console.log("Missing target node:", d.target);
+        return y || 0;
+    });
     console.log("Links updated:", link.size());
 
+    // Update nodes
     const node = svg.selectAll(".node")
         .data(graph.nodes)
         .join("circle")
         .attr("class", "node")
         .attr("r", nodeRadius)
-        .attr("cx", d => d.x)
-        .attr("cy", d => d.y)
-        .attr("fill", d => d3.schemeCategory10[d.layer % 10]);
+        .attr("cx", d => nodePositions.get(d.id)?.x || 0)
+        .attr("cy", d => nodePositions.get(d.id)?.y || 0)
+        .attr("fill", d => d3.schemeCategory10[d.layer % 10])
+        .sort((a, b) => {
+            const orderA = nodePositions.get(a.id)?.renderOrder || 0;
+            const orderB = nodePositions.get(b.id)?.renderOrder || 0;
+            return orderA - orderB;
+        });
 
     console.log("Nodes updated:", node.size());
 
     node.on("click", handleNodeClick)
         .on("mouseover", handleNodeHover)
         .on("mouseout", handleNodeLeave);
+}
 
-    // Remove the simulation as it's no longer needed
+function handleBackgroundClick() {
+    console.log("Background clicked");
+    selectedNode = null;
+    resetGraphStyles();
+    updateInfoPanel(null);  // Clear the info panel
 }
 
 function drag(simulation) {
@@ -116,55 +206,62 @@ function drag(simulation) {
 }
 
 function handleNodeClick(event, d) {
+    event.stopPropagation();
+    console.log(selectedNode);
     if (selectedNode === d) {
         selectedNode = null;
         resetGraphStyles();
     } else {
         selectedNode = d;
-        highlightNode(d);
+        highlightNode(d, 'selected');
     }
     updateInfoPanel(d);
 }
 
 function handleNodeHover(event, d) {
-    if (!selectedNode) {
-        highlightNode(d);
+    highlightNode(d, 'hovered');
+}
+
+function handleNodeLeave(event, d) {
+    if (selectedNode) {
+        highlightNode(selectedNode, 'selected');
     }
 }
 
-function handleNodeLeave() {
-    if (!selectedNode) {
-        resetGraphStyles();
-    }
-}
-
-function highlightNode(d) {
-    const connectedNodes = new Set();
-    const connectedLinks = new Set();
-
-    graph.links.forEach(link => {
-        if (link.source === d || link.target === d) {
-            connectedNodes.add(link.source);
-            connectedNodes.add(link.target);
-            connectedLinks.add(link);
-        }
+function highlightNode(d, highlightType) {
+    const neighbors = nodeNeighbors.get(d.id);
+    const neighborNodeIds = neighbors.nodes;
+    const connectedNodes = new Set([d]);
+    
+    // Add actual node objects to connectedNodes
+    neighborNodeIds.forEach(nodeId => {
+        const node = graph.nodes.find(n => n.id === nodeId);
+        if (node) connectedNodes.add(node);
     });
 
-    svg.selectAll(".node")
-        .attr("fill", node => connectedNodes.has(node) ? "blue" : d3.schemeCategory10[node.layer % 10])
-        .attr("r", node => connectedNodes.has(node) ? 7 : 5);
+    const connectedLinks = neighbors.edges;
 
-    svg.selectAll(".link")
-        .attr("stroke", link => connectedLinks.has(link) ? "blue" : "#999")
-        .attr("stroke-opacity", link => connectedLinks.has(link) ? 1 : 0.6);
+    // Apply new highlight classes based on highlightType
+    if (highlightType === 'selected' || highlightType === 'hovered') {
+        svg.selectAll(".node")
+            .classed(`${highlightType}-node`, node => node === d)
+            .classed(`${highlightType}-neighbor`, node => connectedNodes.has(node) && node !== d);
+
+        svg.selectAll(".link")
+            .classed(`${highlightType}-edge`, link => connectedLinks.has(link));
+    }
 }
 
 function resetGraphStyles() {
     svg.selectAll(".node")
-        .attr("fill", d => d3.schemeCategory10[d.layer % 10])
-        .attr("r", 5);
+        .classed("selected-node", false)
+        .classed("selected-neighbor", false)
+        .classed("hovered-node", false)
+        .classed("hovered-neighbor", false);
 
     svg.selectAll(".link")
-        .attr("stroke", "#999")
-        .attr("stroke-opacity", 0.6);
+        .classed("selected-edge", false)
+        .classed("hovered-edge", false);
+
+    selectedNode = null;
 }

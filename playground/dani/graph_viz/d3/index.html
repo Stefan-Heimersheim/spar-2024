@@ -9,10 +9,22 @@
 </head>
 <body>
     <div id="container">
-        <div id="graph-container"></div>
+        <div id="graph-container">
+            <div id="graph-inner-container"></div>
+        </div>
         <div id="info-panel">
             <h2>Feature Information</h2>
             <p id="node-info">Click on a node to see information</p>
+            <div id="settings">
+                <h3>Feature Sorting</h3>
+                <label>
+                    <input type="radio" name="layer-sort" value="minimize-crossings" checked> Minimize Crossings
+                </label>
+                <br>
+                <label>
+                    <input type="radio" name="layer-sort" value="feature-index"> Feature Index
+                </label>
+            </div>
         </div>
     </div>
     <script src="graph.js"></script>
