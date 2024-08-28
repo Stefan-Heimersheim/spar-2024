@@ -10,7 +10,7 @@ function initializeGraph() {
         console.log("Container initialized with dimensions:", width, height);
         svg = svgElement;  // Assign to the global svg variable
 
-        fetch('sample_graph.json')
+        fetch('active_features_2.json')
             .then(response => response.json())
             .then(data => {
                 console.log("Data loaded:", data);
