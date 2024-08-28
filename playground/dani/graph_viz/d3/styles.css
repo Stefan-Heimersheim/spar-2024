@@ -11,7 +11,7 @@ body, html {
 }
 
 #graph-container {
-  width: 75%;
+  width: 70%;
   height: 100%;
   overflow: hidden;
   padding: 40px;
@@ -31,12 +31,44 @@ body, html {
 }
 
 #info-panel {
-  width: 25%;
+  width: 30%;
   height: 100%;
   padding: 20px;
   box-sizing: border-box;
   background-color: #f0f0f0;
   overflow-y: auto;
+  font-family: Arial, sans-serif;
+}
+
+#feature-details {
+  margin-bottom: 20px;
+}
+
+#feature-details table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+#feature-details th, #feature-details td {
+  border: 1px solid #ddd;
+  padding: 8px;
+  text-align: left;
+}
+
+#feature-details th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+#feature-details .similarity {
+  /* font-weight: bold; */
+  /* color: #4285f4; */
+}
+
+#settings label {
+  display: block;
+  margin-bottom: 5px;
 }
 
 .node {

@@ -1,23 +1,50 @@
-function updateInfoPanel(d) {
-    const infoPanel = document.getElementById("node-info");
-    if (d) {
-        let html = `<h3>Layer ${d.layer} Feature ${d.feature}</h3>`;
-        html += `<p>${d.explanation}</p>`;
-        html += "<h4>Connected Features:</h4>";
+function updateInfoPanel(node) {
+    const infoPanel = document.getElementById('feature-details');
+    if (!node) {
+        infoPanel.innerHTML = '<p>Click on a node to see information</p>';
+        return;
+    }
 
-        console.log(graph.links);
-        graph.links.forEach(link => {
-            console.log(link);
-            if (link.source === d.id || link.target === d.id) {
-                const connectedNodeId = link.source === d.id ? link.target : link.source;
-                const connectedNode = graph.nodes.find(node => node.id === connectedNodeId);
-                html += `<p>Layer ${connectedNode.layer} Feature ${connectedNode.feature}: ${connectedNode.explanation}</p>`;
-                html += `<p>Similarity: ${link.similarity.toFixed(2)}</p>`;
-            }
+    const [layer, feature] = node.id.split('_');
+    const neighbors = nodeNeighbors.get(node.id);
+    console.log(neighbors);
+
+    let html = `
+        <h3>Layer ${layer} Feature ${feature}</h3>
+        <p>${node.explanation}</p>
+        <h4>Connected Features:</h4>
+    `;
+
+    console.log(neighbors.nodes);
+    if (neighbors.nodes.size === 0) {
+        console.log("no nodes");
+        html += '<p>None</p>';
+    } else {
+        html += `
+        <table>
+            <tr><th>Layer</th><th>Feature</th><th>Explanation</th><th>Similarity</th></tr>
+        `;
+
+        neighbors.nodes.forEach(neighborId => {
+            const neighborNode = graph.nodes.find(n => n.id === neighborId);
+            const [neighborLayer, neighborFeature] = neighborId.split('_');
+            const similarity = graph.links.find(l => 
+                (l.source === node.id && l.target === neighborId) || 
+                (l.source === neighborId && l.target === node.id)
+            ).similarity;
+
+            html += `
+                <tr>
+                    <td>${neighborLayer}</td>
+                    <td>${neighborFeature}</td>
+                    <td>${neighborNode.explanation}</td>
+                    <td class="similarity">${similarity.toFixed(2)}</td>
+                </tr>
+            `;
         });
 
-        infoPanel.innerHTML = html;
-    } else {
-        infoPanel.innerHTML = "Click on a node to see information";
+        html += '</table>';
     }
+
+    infoPanel.innerHTML = html;
 }

@@ -15,6 +15,14 @@ function initializeGraph() {
             .then(data => {
                 console.log("Data loaded:", data);
                 data.links = data.links.filter(link => link.similarity > 0);
+                
+                // Apply sentence case to node explanations
+                data.nodes.forEach(node => {
+                    if (node.explanation) {
+                        node.explanation = toSentenceCase(node.explanation);
+                    }
+                });
+
                 graph = data;
                 initializeNodeNeighbors();
                 console.log("Graph nodes:", graph.nodes.length, "Graph links:", graph.links.length);
@@ -22,6 +30,11 @@ function initializeGraph() {
             })
             .catch(error => console.error("Error loading data:", error));
     });
+}
+
+// Helper function to convert a string to sentence case
+function toSentenceCase(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
 function ensureDOMLoaded(callback) {
