@@ -81,7 +81,6 @@ function getNodesByLayerMinimizeCrossings(graph) {
 }
 
 function updateGraph(width, height) {
-    console.log("Updating graph");
 
     const innerContainer = document.getElementById('graph-inner-container');
     const { width: innerWidth, height: innerHeight } = innerContainer.getBoundingClientRect();
@@ -126,7 +125,7 @@ function updateGraph(width, height) {
 
     // Update links
     const link = svg.selectAll(".link")
-    .data(graph.links)
+    .data(graph.links.filter(d => d.similarity > 0))
     .join("line")
     .attr("class", "link")
     .attr("stroke-width", d => Math.sqrt(d.similarity) * 2)
@@ -150,7 +149,6 @@ function updateGraph(width, height) {
         if (y === undefined) console.log("Missing target node:", d.target);
         return y || 0;
     });
-    console.log("Links updated:", link.size());
 
     // Update nodes
     const node = svg.selectAll(".node")
@@ -168,7 +166,6 @@ function updateGraph(width, height) {
             return orderA - orderB;
         });
 
-    console.log("Nodes updated:", node.size());
 
     node.on("click", handleNodeClick)
         .on("mouseover", handleNodeHover)
@@ -220,9 +217,15 @@ function handleNodeClick(event, d) {
 }
 
 function handleNodeHover(event, d) {
-    resetGraphStyles();
-    unhighlightNode(d);
+    if (selectedNode === d || d.highlighted){
+        resetGraphStyles();
+        unhighlightNode(d);
+    }
+    // else if (d.highlighted) {
+    //     unhighlightNode(d);
+    // }
     highlightNode(d, 'hovered', false);
+    updateInfoPanel(d);
 }
 
 function handleNodeLeave(event, d) {
@@ -231,6 +234,10 @@ function handleNodeLeave(event, d) {
     if (selectedNode) {
         unhighlightNode(selectedNode);
         highlightNode(selectedNode, 'selected', false);
+        updateInfoPanel(selectedNode);
+    }
+    else {
+        updateInfoPanel(null);
     }
 }
 
@@ -249,7 +256,7 @@ function unhighlightNode(d) {
 }
 
 function highlightNode(d, highlightType, distant = false) {
-    if (highlightType === d.highlighted) return;
+    // if (highlightType === d.highlighted) return;
     d.highlighted = highlightType;
     const neighbors = nodeNeighbors.get(d.id);
     const neighborNodeIds = neighbors.nodes;

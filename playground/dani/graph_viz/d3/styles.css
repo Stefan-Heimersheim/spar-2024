@@ -77,13 +77,13 @@ body, html {
 .link.selected-edge {
   stroke: #4285f4;
   stroke-opacity: 1;
-  stroke-width: 2px;
+  /* stroke-width: 2px; */
 }
 
 .link.hovered-edge {
   stroke: #ff7f0e;
   stroke-opacity: 1;
-  stroke-width: 2px;
+  /* stroke-width: 2px; */
 }
 
 .node.selected-distant-node,
@@ -103,11 +103,11 @@ body, html {
 .link.selected-distant-edge {
     stroke: #c6d9fd;
     stroke-opacity: 0.8;
-    stroke-width: 1.5px;
+    /* stroke-width: 1.5px; */
 }
 
 .link.hovered-distant-edge {
     stroke: #ffe8cc;
     stroke-opacity: 0.8;
-    stroke-width: 1.5px;
+    /* stroke-width: 1.5px; */
 }
