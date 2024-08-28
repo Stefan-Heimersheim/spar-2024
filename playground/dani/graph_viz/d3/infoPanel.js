@@ -9,7 +9,7 @@ function updateInfoPanel(node) {
     const neighbors = nodeNeighbors.get(node.id);
 
     let html = `
-        <h3>Layer ${layer} Feature ${feature}</h3>
+        <h3>Layer ${layer}, Feature ${feature}</h3>
         <p>${node.explanation}</p>
         <h4>Connected Features:</h4>
     `;

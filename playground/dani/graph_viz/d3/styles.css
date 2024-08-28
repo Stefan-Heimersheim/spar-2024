@@ -38,6 +38,24 @@ body, html {
   background-color: #f0f0f0;
   overflow-y: auto;
   font-family: Arial, sans-serif;
+  font-size: 14px;  /* Reduced base font size */
+}
+
+#info-panel h2 {
+  font-size: 18px;  /* Reduced heading size */
+  margin-bottom: 10px;
+}
+
+#info-panel h3 {
+  font-size: 16px;  /* Reduced subheading size */
+  margin-top: 15px;
+  margin-bottom: 8px;
+}
+
+#info-panel h4 {
+  font-size: 15px;  /* Reduced sub-subheading size */
+  margin-top: 12px;
+  margin-bottom: 6px;
 }
 
 #feature-details {
@@ -47,12 +65,13 @@ body, html {
 #feature-details table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 10px;
+  margin-top: 8px;
+  font-size: 12px;  /* Reduced table font size */
 }
 
 #feature-details th, #feature-details td {
   border: 1px solid #ddd;
-  padding: 8px;
+  padding: 6px;
   text-align: left;
 }
 
@@ -62,13 +81,14 @@ body, html {
 }
 
 #feature-details .similarity {
-  /* font-weight: bold; */
-  /* color: #4285f4; */
+  /* font-weight: bold;
+  color: #4285f4; */
 }
 
 #settings label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
+  font-size: 13px;  /* Reduced settings font size */
 }
 
 .node {
