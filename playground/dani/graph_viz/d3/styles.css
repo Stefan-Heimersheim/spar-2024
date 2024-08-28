@@ -143,3 +143,16 @@ body, html {
     stroke-opacity: 0.8;
     /* stroke-width: 1.5px; */
 }
+
+.tooltip {
+    position: absolute;
+    text-align: center;
+    padding: 8px;
+    font: 12px sans-serif;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #999;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 1000;
+    box-shadow: 0 0 5px rgba(0,0,0,0.1);
+}

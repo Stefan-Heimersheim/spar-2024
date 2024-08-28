@@ -221,14 +221,38 @@ function handleNodeHover(event, d) {
         resetGraphStyles();
         unhighlightNode(d);
     }
-    // else if (d.highlighted) {
-    //     unhighlightNode(d);
-    // }
     highlightNode(d, 'hovered', false);
     updateInfoPanel(d);
+
+    // Show tooltip
+    const tooltip = showTooltip(d);
+
+}
+
+function showTooltip(d) {
+    const tooltip = d3.select("body").append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 0);
+
+    const nodeElement = d3.select(`.node[id="${d.id}"]`)
+    const nodeBox = nodeElement.node().getBBox();
+    const svgRect = svg.node().getBoundingClientRect();
+    const xPosition = svgRect.left + nodeBox.x + nodeBox.width + 10; // 10px to the right of the node
+    const yPosition = svgRect.top + nodeBox.y - 10; // 10px above the node
+
+    tooltip.transition()
+        .duration(200)
+        .style("opacity", .9);
+
+    tooltip.html(`Layer ${d.layer}, Feature ${d.feature}`)
+        .style("left", xPosition + "px")
+        .style("top", yPosition + "px");
+
+    return tooltip;
 }
 
 function handleNodeLeave(event, d) {
+    console.log("handleNodeLeave", d);
     unhighlightNode(d);
     resetGraphStyles();
     if (selectedNode) {
@@ -239,6 +263,11 @@ function handleNodeLeave(event, d) {
     else {
         updateInfoPanel(null);
     }
+    // Remove tooltip
+    d3.select('.tooltip').transition()
+    .duration(200)
+    .style('opacity', 0)
+    .remove();
 }
 
 function unhighlightNode(d) {

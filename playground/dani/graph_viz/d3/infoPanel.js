@@ -7,7 +7,6 @@ function updateInfoPanel(node) {
 
     const [layer, feature] = node.id.split('_');
     const neighbors = nodeNeighbors.get(node.id);
-    console.log(neighbors);
 
     let html = `
         <h3>Layer ${layer} Feature ${feature}</h3>
@@ -15,9 +14,7 @@ function updateInfoPanel(node) {
         <h4>Connected Features:</h4>
     `;
 
-    console.log(neighbors.nodes);
     if (neighbors.nodes.size === 0) {
-        console.log("no nodes");
         html += '<p>None</p>';
     } else {
         html += `
