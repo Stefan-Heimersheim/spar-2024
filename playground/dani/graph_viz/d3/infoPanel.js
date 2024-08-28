@@ -17,19 +17,26 @@ function updateInfoPanel(node) {
     if (neighbors.nodes.size === 0) {
         html += '<p>None</p>';
     } else {
-        html += `
-        <table>
-            <tr><th>Layer</th><th>Feature</th><th>Explanation</th><th>Similarity</th></tr>
-        `;
-
-        neighbors.nodes.forEach(neighborId => {
+        // Create an array of neighbor objects with their details
+        const neighborDetails = Array.from(neighbors.nodes).map(neighborId => {
             const neighborNode = graph.nodes.find(n => n.id === neighborId);
             const [neighborLayer, neighborFeature] = neighborId.split('_');
             const similarity = graph.links.find(l => 
                 (l.source === node.id && l.target === neighborId) || 
                 (l.source === neighborId && l.target === node.id)
             ).similarity;
+            return { neighborLayer, neighborFeature, neighborNode, similarity };
+        });
 
+        // Sort neighbors by similarity in descending order
+        neighborDetails.sort((a, b) => b.similarity - a.similarity);
+
+        html += `
+        <table>
+            <tr><th>Layer</th><th>Feature</th><th>Explanation</th><th>Similarity</th></tr>
+        `;
+
+        neighborDetails.forEach(({ neighborLayer, neighborFeature, neighborNode, similarity }) => {
             html += `
                 <tr>
                     <td>${neighborLayer}</td>

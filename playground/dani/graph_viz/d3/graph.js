@@ -295,8 +295,6 @@ function highlightNode(d, highlightType, distant = false) {
     });
 
     const connectedLinks = neighbors.edges;
-    console.log("d", d);
-    console.log("connectedLinks", connectedLinks);
 
     const nodeClass = distant ? `${highlightType}-distant-node` : `${highlightType}-node`;
     const edgeClass = distant ? `${highlightType}-distant-edge` : `${highlightType}-edge`;
@@ -306,7 +304,6 @@ function highlightNode(d, highlightType, distant = false) {
 
     connectedLinks.forEach(link => {
         const linkElement = svg.select(`.link[source="${link.source}"][target="${link.target}"]`)
-        console.log("linkElement", linkElement);
         linkElement.classed(edgeClass, true);
     });
 
@@ -319,7 +316,6 @@ function highlightNode(d, highlightType, distant = false) {
 }
 
 function resetGraphStyles() {
-    console.log("resetGraphStyles");
     svg.selectAll(".node")
         .attr("class", "node");
 
