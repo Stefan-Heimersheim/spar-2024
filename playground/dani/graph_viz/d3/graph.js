@@ -220,6 +220,8 @@ function handleNodeClick(event, d) {
 }
 
 function handleNodeHover(event, d) {
+    resetGraphStyles();
+    unhighlightNode(d);
     highlightNode(d, 'hovered', false);
 }
 
