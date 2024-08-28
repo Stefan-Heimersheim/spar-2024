@@ -345,14 +345,17 @@ function handleNodeClick(event, d) {
     showTooltip(d);
 }
 
-function handleNodeHover(event, d) {
+function highlightHoveredNode(d) {
     if (selectedNode === d || d.highlighted){
         resetGraphStyles();
         unhighlightNode(d);
     }
     highlightNode(d, 'hovered', false);
-    updateInfoPanel(d);
+}
 
+function handleNodeHover(event, d) {
+    highlightHoveredNode(d);
+    updateInfoPanel(d);
     // Show tooltip
     const tooltip = showTooltip(d);
 
@@ -409,6 +412,7 @@ function unhighlightNode(d) {
 
 function highlightNode(d, highlightType, distant = false) {
     // if (highlightType === d.highlighted) return;
+    console.log("d", d);
     d.highlighted = highlightType;
     const neighbors = nodeNeighbors.get(d.id);
     const neighborNodeIds = neighbors.nodes;
@@ -448,4 +452,10 @@ function resetGraphStyles() {
     svg.selectAll(".link")
         .attr("class", "link");
     d3.select('.tooltip').remove();
+}
+
+function highlightOneNode(d, highlightType) {
+    console.log("highlightOneNode", d);
+    nodeSvg = svg.select(`.node[id="${d.id}"]`)
+        .classed(highlightType, false);
 }

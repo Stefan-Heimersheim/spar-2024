@@ -39,7 +39,7 @@ function updateInfoPanel(node) {
 
         neighborDetails.forEach(({ neighborLayer, neighborFeature, neighborNode, similarity, link }) => {
             html += `
-                <tr>
+                <tr data-node-id="${neighborNode.id}">
                     <td>${neighborLayer}</td>
                     <td>${neighborFeature}</td>
                     <td>${neighborNode.explanation}</td>
@@ -55,4 +55,21 @@ function updateInfoPanel(node) {
     }
 
     infoPanel.innerHTML = html;
+
+    // Add event listeners to table rows
+    const tableRows = infoPanel.querySelectorAll('table tr[data-node-id]');
+    tableRows.forEach(row => {
+        row.addEventListener('mouseenter', () => {
+            const nodeId = row.getAttribute('data-node-id');
+            const hoveredNode = graph.nodes.find(n => n.id === nodeId);
+            // highlightOneNode(hoveredNode, 'hovered');
+            highlightHoveredNode(hoveredNode);
+        });
+        row.addEventListener('mouseleave', () => {
+            const nodeId = row.getAttribute('data-node-id');
+            const hoveredNode = graph.nodes.find(n => n.id === nodeId);
+            handleNodeLeave(null, hoveredNode);
+            // resetGraphStyles();
+        });
+    });
 }
