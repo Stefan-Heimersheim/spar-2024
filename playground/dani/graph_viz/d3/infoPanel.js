@@ -62,8 +62,7 @@ function updateInfoPanel(node) {
         row.addEventListener('mouseenter', () => {
             const nodeId = row.getAttribute('data-node-id');
             const hoveredNode = graph.nodes.find(n => n.id === nodeId);
-            // highlightOneNode(hoveredNode, 'hovered');
-            highlightHoveredNode(hoveredNode);
+            highlightOneNode(hoveredNode, 'hovered');
         });
         row.addEventListener('mouseleave', () => {
             const nodeId = row.getAttribute('data-node-id');
