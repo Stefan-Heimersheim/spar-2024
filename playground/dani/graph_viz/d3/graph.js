@@ -447,8 +447,5 @@ function resetGraphStyles() {
 
     svg.selectAll(".link")
         .attr("class", "link");
-    d3.select('.tooltip').transition()
-    .duration(200)
-    .style('opacity', 0)
-    .remove();
+    d3.select('.tooltip').remove();
 }
