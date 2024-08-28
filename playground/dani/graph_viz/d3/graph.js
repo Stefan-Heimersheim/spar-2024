@@ -80,6 +80,120 @@ function getNodesByLayerMinimizeCrossings(graph) {
     return nodesByLayer;
 }
 
+function getNodesByLayerMaximizeVerticalLines(graph) {
+    const nodesByLayer = {};
+    // Group nodes by layer
+    graph.nodes.forEach(node => {
+        if (!nodesByLayer[node.layer]) {
+            nodesByLayer[node.layer] = [];
+        }
+        nodesByLayer[node.layer].push(node);
+    });
+
+    // Identify vertical chains
+    const verticalChains = identifyVerticalChains(graph, nodesByLayer);
+    console.log("Vertical chains:", verticalChains);
+
+    // Assign positions to chains
+    const nodePositions = assignPositionsToChains(verticalChains, nodesByLayer);
+    console.log("Node positions:", nodePositions);
+
+    // Handle forks and branches
+    handleForksAndBranches(graph, nodePositions, nodesByLayer);
+    console.log("Node positions after forks and branches:", nodePositions);
+    // Optimize remaining node positions
+    optimizeRemainingPositions(nodePositions, nodesByLayer);
+
+    // Sort nodes within each layer based on their assigned positions
+    Object.keys(nodesByLayer).forEach(layer => {
+        nodesByLayer[layer].sort((a, b) => nodePositions[a.id] - nodePositions[b.id]);
+    });
+
+    return nodesByLayer;
+}
+
+function identifyVerticalChains(graph, nodesByLayer) {
+    const chains = [];
+    const visited = new Set();
+
+    function dfs(nodeId, currentChain) {
+        visited.add(nodeId);
+        currentChain.push(nodeId);
+
+        const neighbors = graph.links
+            .filter(link => link.source === nodeId || link.target === nodeId)
+            .map(link => link.source === nodeId ? link.target : link.source);
+
+        const nextLayerNeighbors = neighbors.filter(neighbor => {
+            const [neighborLayer] = neighbor.split('_');
+            const [currentLayer] = nodeId.split('_');
+            return parseInt(neighborLayer) === parseInt(currentLayer) + 1;
+        });
+
+        if (nextLayerNeighbors.length === 1 && !visited.has(nextLayerNeighbors[0])) {
+            dfs(nextLayerNeighbors[0], currentChain);
+        } else {
+            chains.push(currentChain);
+        }
+    }
+
+    Object.values(nodesByLayer)[0].forEach(node => {
+        if (!visited.has(node.id)) {
+            dfs(node.id, []);
+        }
+    });
+
+    return chains;
+}
+
+function assignPositionsToChains(verticalChains, nodesByLayer) {
+    const nodePositions = {};
+    let currentPosition = 0;
+
+    verticalChains.forEach(chain => {
+        chain.forEach(nodeId => {
+            nodePositions[nodeId] = currentPosition;
+        });
+        currentPosition++;
+    });
+
+    return nodePositions;
+}
+
+function handleForksAndBranches(graph, nodePositions, nodesByLayer) {
+    graph.links.forEach(link => {
+        const sourcePos = nodePositions[link.source];
+        const targetPos = nodePositions[link.target];
+
+        if (sourcePos !== undefined && targetPos === undefined) {
+            nodePositions[link.target] = sourcePos;
+        } else if (sourcePos === undefined && targetPos !== undefined) {
+            nodePositions[link.source] = targetPos;
+        }
+    });
+}
+
+function optimizeRemainingPositions(nodePositions, nodesByLayer) {
+    Object.values(nodesByLayer).forEach(layerNodes => {
+        layerNodes.forEach(node => {
+            if (nodePositions[node.id] === undefined) {
+                const neighbors = graph.links
+                    .filter(link => link.source === node.id || link.target === node.id)
+                    .map(link => link.source === node.id ? link.target : link.source);
+
+                const assignedNeighbors = neighbors.filter(neighbor => nodePositions[neighbor] !== undefined);
+
+                if (assignedNeighbors.length > 0) {
+                    const avgPosition = assignedNeighbors.reduce((sum, neighbor) => sum + nodePositions[neighbor], 0) / assignedNeighbors.length;
+                    nodePositions[node.id] = Math.round(avgPosition);
+                } else {
+                    nodePositions[node.id] = Object.keys(nodePositions).length;
+                }
+            }
+        });
+    });
+}
+
 function updateGraph(width, height) {
 
     const innerContainer = document.getElementById('graph-inner-container');
@@ -98,10 +212,22 @@ function updateGraph(width, height) {
     };
 
     const sortMethod = document.querySelector('input[name="layer-sort"]:checked').value;
-    const nodesByLayer = sortMethod === 'feature-index' 
-        ? getNodesByLayerFeatureIndex(graph) 
-        : getNodesByLayerMinimizeCrossings(graph);
+    let nodesByLayer;
+    switch (sortMethod) {
+        case 'feature-index':
+            nodesByLayer = getNodesByLayerFeatureIndex(graph);
+            break;
+        case 'minimize-crossings':
+            nodesByLayer = getNodesByLayerMinimizeCrossings(graph);
+            break;
+        case 'maximize-vertical-lines':
+            nodesByLayer = getNodesByLayerMaximizeVerticalLines(graph);
+            break;
+        default:
+            nodesByLayer = getNodesByLayerFeatureIndex(graph);
+    }
 
+    console.log("Nodes by layer:", nodesByLayer);
     const availableWidth = innerWidth - margin.left - margin.right;
     const availableHeight = innerHeight - margin.top - margin.bottom;
     const layerHeight = availableHeight / (layerCount - 1);
