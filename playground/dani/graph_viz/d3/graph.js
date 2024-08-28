@@ -128,6 +128,8 @@ function updateGraph(width, height) {
     .data(graph.links.filter(d => d.similarity > 0))
     .join("line")
     .attr("class", "link")
+    .attr("source", d => d.source)
+    .attr("target", d => d.target)
     .attr("stroke-width", d => Math.sqrt(d.similarity) * 2)
     .attr("x1", d => {
         const x = nodePositions.get(d.source)?.x;
@@ -214,6 +216,7 @@ function handleNodeClick(event, d) {
         selectedNode = d;
     }
     updateInfoPanel(d);
+    showTooltip(d);
 }
 
 function handleNodeHover(event, d) {
@@ -262,11 +265,6 @@ function handleNodeLeave(event, d) {
     else {
         updateInfoPanel(null);
     }
-    // Remove tooltip
-    d3.select('.tooltip').transition()
-    .duration(200)
-    .style('opacity', 0)
-    .remove();
 }
 
 function unhighlightNode(d) {
@@ -297,6 +295,8 @@ function highlightNode(d, highlightType, distant = false) {
     });
 
     const connectedLinks = neighbors.edges;
+    console.log("d", d);
+    console.log("connectedLinks", connectedLinks);
 
     const nodeClass = distant ? `${highlightType}-distant-node` : `${highlightType}-node`;
     const edgeClass = distant ? `${highlightType}-distant-edge` : `${highlightType}-edge`;
@@ -304,8 +304,11 @@ function highlightNode(d, highlightType, distant = false) {
     nodeSvg = svg.select(`.node[id="${d.id}"]`)
         .classed(nodeClass, true);
 
-    svg.selectAll(".link")
-        .classed(edgeClass, link => connectedLinks.has(link))
+    connectedLinks.forEach(link => {
+        const linkElement = svg.select(`.link[source="${link.source}"][target="${link.target}"]`)
+        console.log("linkElement", linkElement);
+        linkElement.classed(edgeClass, true);
+    });
 
     neighborNodeIds.forEach(nodeId => {
         const node = graph.nodes.find(n => n.id === nodeId);
@@ -316,9 +319,14 @@ function highlightNode(d, highlightType, distant = false) {
 }
 
 function resetGraphStyles() {
+    console.log("resetGraphStyles");
     svg.selectAll(".node")
         .attr("class", "node");
 
     svg.selectAll(".link")
         .attr("class", "link");
+    d3.select('.tooltip').transition()
+    .duration(200)
+    .style('opacity', 0)
+    .remove();
 }
