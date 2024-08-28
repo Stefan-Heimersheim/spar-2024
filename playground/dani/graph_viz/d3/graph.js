@@ -176,7 +176,6 @@ function updateGraph(width, height) {
 }
 
 function handleBackgroundClick() {
-    console.log("Background clicked");
     selectedNode = null;
     resetGraphStyles();
     updateInfoPanel(null);  // Clear the info panel
@@ -210,6 +209,7 @@ function handleNodeClick(event, d) {
     event.stopPropagation();
     resetGraphStyles();
     unhighlightNode(d);
+    highlightNode(d, 'selected', false);
     if (selectedNode === d) {
         selectedNode = null;
         resetGraphStyles();
@@ -224,10 +224,10 @@ function handleNodeHover(event, d) {
 }
 
 function handleNodeLeave(event, d) {
-    console.log("Node leave:", d);
     unhighlightNode(d);
     resetGraphStyles();
     if (selectedNode) {
+        unhighlightNode(selectedNode);
         highlightNode(selectedNode, 'selected', false);
     }
 }
