@@ -252,7 +252,6 @@ function showTooltip(d) {
 }
 
 function handleNodeLeave(event, d) {
-    console.log("handleNodeLeave", d);
     unhighlightNode(d);
     resetGraphStyles();
     if (selectedNode) {
