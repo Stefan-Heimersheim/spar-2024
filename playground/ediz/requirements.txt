@@ -1,9 +1,0 @@
-igraph==0.11.5
-leidenalg==0.10.2
-numpy==1.26.4
-cairocffi==1.7.1
-numpy==2.0.1
-networkx==3.3
-matplotlib==3.9.2
-einops
-Flask
