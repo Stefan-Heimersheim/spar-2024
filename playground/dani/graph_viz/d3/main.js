@@ -59,6 +59,14 @@ ensureDOMLoaded(() => {
                 updateGraph(width, height);
             });
         });
+
+        // Add event listener for collapsible advanced settings
+        const collapsible = document.querySelector('.collapsible h3');
+        collapsible.addEventListener('click', () => {
+            collapsible.parentElement.classList.toggle('active');
+            const arrow = collapsible.querySelector('.arrow');
+            arrow.textContent = collapsible.parentElement.classList.contains('active') ? '▼' : '▶';
+        });
     });
 });
 
