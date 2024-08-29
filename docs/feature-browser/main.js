@@ -19,9 +19,9 @@ function initializeGraph() {
 function loadSampleList() {
     // Hardcoded list of sample files
     const sampleFiles = [
+        'abstract.json',
         'how_are_you.json',
         'klara_and_the_sun.json',
-        'abstract.json',
         // Add more sample files as needed
     ];
 
