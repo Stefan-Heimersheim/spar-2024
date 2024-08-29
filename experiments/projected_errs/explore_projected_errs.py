@@ -129,3 +129,79 @@ def create_histogram_overlay_plots(avg_err_projection_onto_feat, avg_feat, disap
 # avg_feat[np.random.rand(*avg_feat.shape) < 0.01] = -1000
 # create_histogram_overlay_plots(avg_err_projection_onto_feat, avg_feat, disappeared_feature_mask)
 # %%
+import numpy as np
+import matplotlib.pyplot as plt
+
+def create_scatterplots(avg_err_projection_onto_feat, avg_feat, disappeared_feature_mask):
+    assert avg_err_projection_onto_feat.shape == avg_feat.shape == disappeared_feature_mask.shape
+    num_plots, _ = avg_err_projection_onto_feat.shape
+
+    fig, axes = plt.subplots(3, 4, figsize=(20, 15))  # 4x3 grid for 11 plots (12th will be empty)
+    fig.suptitle("Avg Feature Value vs Next Layer Error Projection for active features which disappeared", fontsize=16)
+    axes = axes.flatten()
+
+    for idx in range(num_plots):
+        ax = axes[idx]
+        
+        # Get the mask for this index
+        mask = disappeared_feature_mask[idx, :]
+        
+        # Filter the data based on the mask and remove NaN values
+        err_data = avg_err_projection_onto_feat[idx, mask]
+        feat_data = avg_feat[idx, mask]
+        
+        # Remove entries where either err_data or feat_data is NaN, or feat_data < 0.01
+        valid_mask = ~(np.isnan(err_data) | np.isnan(feat_data)) & (feat_data >= 0.01)
+        err_data = err_data[valid_mask]
+        feat_data = feat_data[valid_mask]
+        
+        if len(err_data) == 0 and len(feat_data) == 0:
+            ax.text(0.5, 0.5, 'No valid data', ha='center', va='center')
+            ax.set_title(f'Layer {idx}')
+            continue
+        
+        # Create scatterplot
+        ax.scatter(feat_data, err_data, alpha=0.5, s=1)  # s=1 for small point size
+        
+        # Set x-axis limits
+        x_min, x_max = 0.01, np.percentile(feat_data, 97.5)
+        ax.set_xlim(x_min, x_max)
+        
+        # Set y-axis limits
+        y_min = min(0, np.percentile(err_data, 2.5))
+        y_max = np.percentile(err_data, 97.5)
+        ax.set_ylim(y_min, y_max)
+        
+        # Update the title to show "Layer {idx}"
+        ax.set_title(f'Layer {idx} Features vs Layer {idx+1} Error')
+        
+        # Set x-label and y-label
+        ax.set_xlabel(f'Layer {idx} Feature Magnitude')
+        ax.set_ylabel(f'Layer {idx+1} Error Projected Onto L{idx} SAE W_dec')
+
+        # Add a red line for y=x
+        line, = ax.plot([x_min, max(x_max, y_max)], 
+                        [x_min, max(x_max, y_max)], 
+                        color='r', linestyle='--', linewidth=0.5)
+
+    # Use the 12th subplot for the legend
+    legend_ax = axes[-1]
+    legend_ax.axis('off')
+    legend_ax.legend([line], ['y=x'], loc='center')
+
+    plt.tight_layout()
+    # Adjust the layout to make room for the overall title
+    plt.subplots_adjust(top=0.95)
+    plt.show()
+
+# Example usage:
+# avg_err_projection_onto_feat = np.random.randn(11, 2000)
+# avg_feat = np.abs(np.random.randn(11, 2000))  # Using abs to ensure positive values
+# disappeared_feature_mask = np.random.choice([True, False], size=(11, 2000))
+# # Introduce some NaN values and outliers
+# avg_err_projection_onto_feat[np.random.rand(*avg_err_projection_onto_feat.shape) < 0.1] = np.nan
+# avg_feat[np.random.rand(*avg_feat.shape) < 0.1] = np.nan
+# avg_err_projection_onto_feat[np.random.rand(*avg_err_projection_onto_feat.shape) < 0.01] = 1000
+# avg_feat[np.random.rand(*avg_feat.shape) < 0.01] = 1000
+# create_scatterplots(avg_err_projection_onto_feat, avg_feat, disappeared_feature_mask)
+# %%
