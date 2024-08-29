@@ -7,9 +7,12 @@ function updateInfoPanel(node) {
 
     const [layer, feature] = node.id.split('_');
     const neighbors = nodeNeighbors.get(node.id);
+    const url = `https://www.neuronpedia.org/gpt2-small/${layer}-res-jb/${feature}`;
 
     let html = `
-        <h3>Layer ${layer}, Feature ${feature}</h3>
+        <h3>Layer ${layer}, Feature ${feature}<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="external-link-icon.png" alt="Neuronpedia" style="width: 16px; height: 16px;">
+        </a></h3>
+        
         <p>${node.explanation}</p>
         <h4>Connected Features:</h4>
     `;
@@ -45,7 +48,7 @@ function updateInfoPanel(node) {
                     <td>${neighborNode.explanation}</td>
                     <td class="similarity">${similarity.toFixed(2)}</td>
                     <td><a href="${link}" target="_blank" rel="noopener noreferrer">
-                        <img src="external-link-icon.png" alt="Open in new tab" style="width: 16px; height: 16px;">
+                        <img src="external-link-icon.png" alt="Neuronpedia" style="width: 16px; height: 16px;">
                     </a></td>
                 </tr>
             `;
