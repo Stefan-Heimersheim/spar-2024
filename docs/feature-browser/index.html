@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPAR Graph Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="container">
+        <div id="graph-container">
+            <div id="graph-inner-container"></div>
+        </div>
+        <div id="info-panel">
+            <div id="feature-details">
+                <h2>Feature Information</h2>
+                <p>Click on a node to see information</p>
+            </div>
+            <div class="collapsible">
+                <h3><span class="arrow">▶</span> Advanced Settings</h3>
+                <div class="content">
+                    <h4>Feature Sorting</h4>
+                    <label>
+                        <input type="radio" name="layer-sort" value="minimize-crossings" checked> Minimize Crossings
+                    </label>
+                    <br>
+                    <label>
+                        <input type="radio" name="layer-sort" value="feature-index"> Feature Index
+                    </label>
+                    <br>
+                    <label>
+                        <input type="radio" name="layer-sort" value="maximize-vertical-lines"> Maximize Vertical Lines
+                    </label>
+                </div>
+            </div>
+            <div id="graph-description"></div>
+        </div>
+    </div>
+    <script src="graph.js"></script>
+    <script src="infoPanel.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,254 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: Arial, sans-serif;
+}
+
+#container {
+  display: flex;
+  height: 100vh;
+}
+
+#graph-container {
+  width: 70%;
+  height: 100%;
+  overflow: hidden;
+  padding: 40px;
+  box-sizing: border-box;
+  position: relative;  /* Add this line */
+}
+
+.background {
+  cursor: default;
+  pointer-events: all;
+  fill: transparent;
+}
+
+#graph-inner-container {
+  width: 100%;
+  height: 100%;
+}
+
+#info-panel {
+  width: 30%;
+  height: 100%;
+  padding: 20px;
+  box-sizing: border-box;
+  background-color: #f0f0f0;
+  overflow-y: auto;
+  font-family: Arial, sans-serif;
+  font-size: 14px;  /* Reduced base font size */
+}
+
+#info-panel h2 {
+  font-size: 18px;  /* Reduced heading size */
+  margin-bottom: 10px;
+}
+
+#info-panel h3 {
+  font-size: 16px;  /* Reduced subheading size */
+  margin-top: 15px;
+  margin-bottom: 8px;
+}
+
+#info-panel h4 {
+  font-size: 15px;  /* Reduced sub-subheading size */
+  margin-top: 12px;
+  margin-bottom: 6px;
+}
+
+#feature-details {
+  margin-bottom: 20px;
+}
+
+#feature-details table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 12px;  /* Reduced table font size */
+}
+
+#feature-details th, #feature-details td {
+  border: 1px solid #ddd;
+  padding: 6px;
+  text-align: left;
+}
+
+#feature-details th {
+  background-color: #f2f2f2;
+  font-weight: bold;
+}
+
+#feature-details .similarity {
+  /* font-weight: bold;
+  color: #4285f4; */
+}
+
+#settings label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 13px;  /* Reduced settings font size */
+}
+
+.node {
+  fill: #ccc;
+  stroke: #999;
+  stroke-width: 1px;
+}
+
+.node.selected-node {
+  fill: #4285f4;
+  stroke: #2a56c6;
+  stroke-width: 2px;
+}
+
+.node.selected-neighbor {
+  fill: #8ab4f8;
+  stroke: #4285f4;
+  stroke-width: 2px;
+}
+
+.node.hovered-node {
+  fill: #ff7f0e;
+  stroke: #e65c00;
+  stroke-width: 2px;
+}
+
+.node.hovered-neighbor {
+  fill: #ffd1a3;
+  stroke: #ff7f0e;
+  stroke-width: 2px;
+}
+
+.link {
+  stroke: #999;
+  stroke-opacity: 0.6;
+}
+
+.link.selected-edge {
+  stroke: #4285f4;
+  stroke-opacity: 1;
+  /* stroke-width: 2px; */
+}
+
+.link.hovered-edge {
+  stroke: #ff7f0e;
+  stroke-opacity: 1;
+  /* stroke-width: 2px; */
+}
+
+.node.selected-distant-node,
+.node.selected-distant-neighbor {
+    fill: #c6d9fd;
+    stroke: #8ab4f8;
+    stroke-width: 1.5px;
+}
+
+.node.hovered-distant-node,
+.node.hovered-distant-neighbor {
+    fill: #ffe8cc;
+    stroke: #ffd1a3;
+    stroke-width: 1.5px;
+}
+
+.link.selected-distant-edge {
+    stroke: #c6d9fd;
+    stroke-opacity: 0.8;
+    /* stroke-width: 1.5px; */
+}
+
+.link.hovered-distant-edge {
+    stroke: #ffe8cc;
+    stroke-opacity: 0.8;
+    /* stroke-width: 1.5px; */
+}
+
+.tooltip {
+    position: absolute;
+    text-align: center;
+    padding: 8px;
+    font: 12px sans-serif;
+    background: rgba(255, 255, 255, 0.9);
+    border: 1px solid #999;
+    border-radius: 4px;
+    pointer-events: none;
+    z-index: 1000;
+    box-shadow: 0 0 5px rgba(0,0,0,0.1);
+}
+
+.collapsible h3 {
+    cursor: pointer;
+    user-select: none;
+}
+
+.collapsible .content {
+    display: none;
+    padding-left: 15px;
+}
+
+.collapsible.active h3 {
+    margin-bottom: 10px;
+}
+
+
+.collapsible.active .content {
+    display: block;
+}
+
+#info-panel {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+#feature-details {
+    flex-grow: 1;
+    overflow-y: auto;
+}
+
+.collapsible {
+    margin-top: auto;
+    border-top: 1px solid #ccc;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
+.collapsible h3 {
+    cursor: pointer;
+    user-select: none;
+    margin: 0;
+    display: flex;
+    align-items: center;
+}
+
+.collapsible .arrow {
+    display: inline-block;
+    margin-right: 5px;
+    transition: transform 0.3s;
+}
+
+.collapsible .content {
+    display: none;
+    padding-top: 10px;
+}
+
+.collapsible.active .content {
+    display: block;
+}
+
+#graph-description {
+  margin-top: auto;
+  padding: 10px 0;
+  border-top: 1px solid #ccc;
+  font-size: 12px;
+  color: #666;
+}
+
+/* .info-table-row {
+  transition: background-color 0.3s ease;
+} */
+
+.info-table-row:hover {
+  background-color: rgba(200, 200, 200, 0.3);
+}
