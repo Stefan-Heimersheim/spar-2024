@@ -32,34 +32,50 @@ body, html {
 
 #info-panel {
   width: 30%;
-  height: 100%;
+  background-color: #f0f0f0;
   padding: 20px;
   box-sizing: border-box;
-  background-color: #f0f0f0;
   overflow-y: auto;
-  font-family: Arial, sans-serif;
-  font-size: 14px;  /* Reduced base font size */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  font-size: 12px;
+  color: #666;
 }
 
-#info-panel h2 {
-  font-size: 18px;  /* Reduced heading size */
-  margin-bottom: 10px;
-}
-
-#info-panel h3 {
-  font-size: 16px;  /* Reduced subheading size */
-  margin-top: 15px;
-  margin-bottom: 8px;
-}
-
-#info-panel h4 {
-  font-size: 15px;  /* Reduced sub-subheading size */
-  margin-top: 12px;
-  margin-bottom: 6px;
+#graph-info {
+  margin-bottom: 20px;
 }
 
 #feature-details {
-  margin-bottom: 20px;
+  flex-grow: 1;
+  overflow-y: auto;
+}
+
+.collapsible {
+  margin-top: auto;
+  border-top: 1px solid #ccc;
+  padding-top: 10px;
+}
+
+#info-panel h2 {
+  font-size: 16px;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+#info-panel h3 {
+  font-size: 14px;
+  margin-top: 15px;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+#info-panel h4 {
+  font-size: 13px;
+  margin-top: 12px;
+  margin-bottom: 6px;
+  color: #333;
 }
 
 #feature-details table {
@@ -191,48 +207,6 @@ body, html {
     margin-bottom: 10px;
 }
 
-
-.collapsible.active .content {
-    display: block;
-}
-
-#info-panel {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-}
-
-#feature-details {
-    flex-grow: 1;
-    overflow-y: auto;
-}
-
-.collapsible {
-    margin-top: auto;
-    border-top: 1px solid #ccc;
-    padding-top: 10px;
-    padding-bottom: 10px;
-}
-
-.collapsible h3 {
-    cursor: pointer;
-    user-select: none;
-    margin: 0;
-    display: flex;
-    align-items: center;
-}
-
-.collapsible .arrow {
-    display: inline-block;
-    margin-right: 5px;
-    transition: transform 0.3s;
-}
-
-.collapsible .content {
-    display: none;
-    padding-top: 10px;
-}
-
 .collapsible.active .content {
     display: block;
 }
@@ -245,10 +219,15 @@ body, html {
   color: #666;
 }
 
-/* .info-table-row {
-  transition: background-color 0.3s ease;
-} */
-
 .info-table-row:hover {
   background-color: rgba(200, 200, 200, 0.3);
+}
+
+#prompt-container {
+    margin-bottom: 20px;
+}
+
+#sample-select {
+    width: 100%;
+    margin-bottom: 10px;
 }

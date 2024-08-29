@@ -354,7 +354,6 @@ function highlightHoveredNode(d) {
 }
 
 function handleNodeHover(event, d) {
-    console.log("handleNodeHover", d);
     highlightHoveredNode(d);
     updateInfoPanel(d);
     // Show tooltip
@@ -385,7 +384,6 @@ function showTooltip(d) {
 }
 
 function handleNodeLeave(event, d) {
-    console.log("handleNodeLeave", d);
     unhighlightNode(d);
     resetGraphStyles();
     if (selectedNode) {
@@ -456,11 +454,9 @@ function resetGraphStyles() {
 }
 
 function highlightOneNode(d, highlightType) {
-    console.log("highlightOneNode", d);
     const nodeClass = `${highlightType}-node`;
     console.log("nodeClass", nodeClass);
     nodeSvg = svg.select(`.node[id="${d.id}"]`)
         .attr("class", "node")
         .classed(nodeClass, true);
-    console.log("nodeSvg", nodeSvg);
 }
