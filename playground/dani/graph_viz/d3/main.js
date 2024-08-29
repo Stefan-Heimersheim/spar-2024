@@ -26,6 +26,15 @@ function initializeGraph() {
                 graph = data;
                 initializeNodeNeighbors();
                 console.log("Graph nodes:", graph.nodes.length, "Graph links:", graph.links.length);
+
+                // Add graph description to the info panel
+                const graphDescriptionElement = document.getElementById('graph-description');
+                if (data.graph && data.graph.description) {
+                    graphDescriptionElement.textContent = data.graph.description;
+                } else {
+                    graphDescriptionElement.textContent = "No graph description available.";
+                }
+
                 updateGraph(width, height);
             })
             .catch(error => console.error("Error loading data:", error));

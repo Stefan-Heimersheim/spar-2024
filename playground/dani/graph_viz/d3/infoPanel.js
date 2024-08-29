@@ -39,7 +39,7 @@ function updateInfoPanel(node) {
 
         neighborDetails.forEach(({ neighborLayer, neighborFeature, neighborNode, similarity, link }) => {
             html += `
-                <tr data-node-id="${neighborNode.id}">
+                <tr data-node-id="${neighborNode.id}" class="info-table-row">
                     <td>${neighborLayer}</td>
                     <td>${neighborFeature}</td>
                     <td>${neighborNode.explanation}</td>

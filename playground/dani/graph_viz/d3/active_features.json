@@ -2,7 +2,7 @@
     "directed": true,
     "multigraph": false,
     "graph": {
-        "description": "This graph's nodes are the SAE features that are active (i.e., whose activation is 0.5 or higher) on the final token of the prompt \"Hello, how are you?\". Its edges represent the similarity values of the pearson_correlation measure with activation threshold None (absolute values below 0.1 are clamped to zero). The explanations of the features are created by GPT-3.5-turbo and downloaded from Neuronpedia."
+        "description": "This graph's nodes are the SAE features that are active (i.e., whose activation is 0.5 or higher) on the final token of the prompt \"Hello, how are you?\". Its edges represent the similarity values of the pearson_correlation measure with activation threshold 0 (absolute values below 0.1 are clamped to zero). The explanations of the features are created by GPT-3.5-turbo and downloaded from Neuronpedia."
     },
     "nodes": [
         {
