@@ -16,7 +16,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Args:
-    measure: Measure = Measure.jaccard
+    measure: Measure = Measure.sufficiency
     samples_per_bin: int = 10
     save: bool = True
 rng = np.random.default_rng()
