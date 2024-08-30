@@ -119,6 +119,7 @@ def compute_projections(activations: t.Tensor, hook: HookPoint):
     )
     decoder_norms = t.norm(prev_layer_sae.W_dec, dim=1)
     projections = dot_product / decoder_norms
+    projections_plus_bias = projections + prev_layer_sae.b_dec
     masked_projections = projections * mask
     projection_sums[hook.layer()-1, :] += masked_projections.sum(dim=(0, 1))
     counts[hook.layer()-1, :] += mask.sum(dim=(0, 1))
@@ -147,7 +148,7 @@ with torch.no_grad():
 # %%
 
 np.savez(
-    f"artefacts/projected_errs/total_num_toks__{num_rows * num_toks_per_row}",
+    f"artefacts/projected_errs/with_bias__total_num_toks__{num_rows * num_toks_per_row}",
     projection_sums=projection_sums.cpu().numpy(),
     counts=counts.cpu().numpy()
 )

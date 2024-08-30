@@ -18,20 +18,21 @@ from dataclasses import dataclass
 # %%
 @dataclass
 class Args:
-    measure = Measure.pearson
+    measure = Measure.jaccard
     nb = 128
     bs = 64
-    count = 90
-    first_layer = 7
+    count = 100
+    first_layer = 0
     last_layer = 11
 args = Args()
 # %%
-if args.measure == Measure.pearson:
-    corr_idxes = np.load(f"artefacts/sampled_interaction_measures/{args.measure.value}/evenly_spaced_count_{args.count}.npz")['arr_0']
-elif args.measure == Measure.jaccard:
-    corr_idxes = np.load(
-        f"artefacts/sampled_interaction_measures/{args.measure.value}/count_{args.count}.npz"
-    )['arr_0']
+measure_to_filename = {
+    Measure.pearson: f"artefacts/sampled_interaction_measures/{args.measure.value}/evenly_spaced_count_{args.count}.npz",
+    Measure.jaccard: f"artefacts/sampled_interaction_measures/jaccard_similarity/count_100.npz",
+    Measure.necessity: "artefacts/sampled_interaction_measures/necessity_relative_activation/count_100.npz",
+    Measure.sufficiency: "artefacts/sampled_interaction_measures/sufficiency_relative_activation/count_100.npz",
+}
+corr_idxes = np.load(measure_to_filename[args.measure])['arr_0']
 num_layers, num_feat_pairs, _ = corr_idxes.shape
 mean_diff_results = np.zeros(shape=(num_layers, num_feat_pairs))
 
