@@ -80,8 +80,121 @@ function getNodesByLayerMinimizeCrossings(graph) {
     return nodesByLayer;
 }
 
+function getNodesByLayerMaximizeVerticalLines(graph) {
+    const nodesByLayer = {};
+    // Group nodes by layer
+    graph.nodes.forEach(node => {
+        if (!nodesByLayer[node.layer]) {
+            nodesByLayer[node.layer] = [];
+        }
+        nodesByLayer[node.layer].push(node);
+    });
+
+    // Identify vertical chains
+    const verticalChains = identifyVerticalChains(graph, nodesByLayer);
+    console.log("Vertical chains:", verticalChains);
+
+    // Assign positions to chains
+    const nodePositions = assignPositionsToChains(verticalChains, nodesByLayer);
+    console.log("Node positions:", nodePositions);
+
+    // Handle forks and branches
+    handleForksAndBranches(graph, nodePositions, nodesByLayer);
+    console.log("Node positions after forks and branches:", nodePositions);
+    // Optimize remaining node positions
+    optimizeRemainingPositions(nodePositions, nodesByLayer);
+
+    // Sort nodes within each layer based on their assigned positions
+    Object.keys(nodesByLayer).forEach(layer => {
+        nodesByLayer[layer].sort((a, b) => nodePositions[a.id] - nodePositions[b.id]);
+    });
+
+    return nodesByLayer;
+}
+
+function identifyVerticalChains(graph, nodesByLayer) {
+    const chains = [];
+    const visited = new Set();
+
+    function dfs(nodeId, currentChain) {
+        visited.add(nodeId);
+        currentChain.push(nodeId);
+
+        const neighbors = graph.links
+            .filter(link => link.source === nodeId || link.target === nodeId)
+            .map(link => link.source === nodeId ? link.target : link.source);
+
+        const nextLayerNeighbors = neighbors.filter(neighbor => {
+            const [neighborLayer] = neighbor.split('_');
+            const [currentLayer] = nodeId.split('_');
+            return parseInt(neighborLayer) === parseInt(currentLayer) + 1;
+        });
+
+        if (nextLayerNeighbors.length === 1 && !visited.has(nextLayerNeighbors[0])) {
+            dfs(nextLayerNeighbors[0], currentChain);
+        } else {
+            chains.push(currentChain);
+        }
+    }
+
+    Object.values(nodesByLayer)[0].forEach(node => {
+        if (!visited.has(node.id)) {
+            dfs(node.id, []);
+        }
+    });
+
+    return chains;
+}
+
+function assignPositionsToChains(verticalChains, nodesByLayer) {
+    const nodePositions = {};
+    let currentPosition = 0;
+
+    verticalChains.forEach(chain => {
+        chain.forEach(nodeId => {
+            nodePositions[nodeId] = currentPosition;
+        });
+        currentPosition++;
+    });
+
+    return nodePositions;
+}
+
+function handleForksAndBranches(graph, nodePositions, nodesByLayer) {
+    graph.links.forEach(link => {
+        const sourcePos = nodePositions[link.source];
+        const targetPos = nodePositions[link.target];
+
+        if (sourcePos !== undefined && targetPos === undefined) {
+            nodePositions[link.target] = sourcePos;
+        } else if (sourcePos === undefined && targetPos !== undefined) {
+            nodePositions[link.source] = targetPos;
+        }
+    });
+}
+
+function optimizeRemainingPositions(nodePositions, nodesByLayer) {
+    Object.values(nodesByLayer).forEach(layerNodes => {
+        layerNodes.forEach(node => {
+            if (nodePositions[node.id] === undefined) {
+                const neighbors = graph.links
+                    .filter(link => link.source === node.id || link.target === node.id)
+                    .map(link => link.source === node.id ? link.target : link.source);
+
+                const assignedNeighbors = neighbors.filter(neighbor => nodePositions[neighbor] !== undefined);
+
+                if (assignedNeighbors.length > 0) {
+                    const avgPosition = assignedNeighbors.reduce((sum, neighbor) => sum + nodePositions[neighbor], 0) / assignedNeighbors.length;
+                    nodePositions[node.id] = Math.round(avgPosition);
+                } else {
+                    nodePositions[node.id] = Object.keys(nodePositions).length;
+                }
+            }
+        });
+    });
+}
+
 function updateGraph(width, height) {
-    console.log("Updating graph");
 
     const innerContainer = document.getElementById('graph-inner-container');
     const { width: innerWidth, height: innerHeight } = innerContainer.getBoundingClientRect();
@@ -99,10 +212,22 @@ function updateGraph(width, height) {
     };
 
     const sortMethod = document.querySelector('input[name="layer-sort"]:checked').value;
-    const nodesByLayer = sortMethod === 'feature-index' 
-        ? getNodesByLayerFeatureIndex(graph) 
-        : getNodesByLayerMinimizeCrossings(graph);
+    let nodesByLayer;
+    switch (sortMethod) {
+        case 'feature-index':
+            nodesByLayer = getNodesByLayerFeatureIndex(graph);
+            break;
+        case 'minimize-crossings':
+            nodesByLayer = getNodesByLayerMinimizeCrossings(graph);
+            break;
+        case 'maximize-vertical-lines':
+            nodesByLayer = getNodesByLayerMaximizeVerticalLines(graph);
+            break;
+        default:
+            nodesByLayer = getNodesByLayerFeatureIndex(graph);
+    }
 
+    console.log("Nodes by layer:", nodesByLayer);
     const availableWidth = innerWidth - margin.left - margin.right;
     const availableHeight = innerHeight - margin.top - margin.bottom;
     const layerHeight = availableHeight / (layerCount - 1);
@@ -126,9 +251,11 @@ function updateGraph(width, height) {
 
     // Update links
     const link = svg.selectAll(".link")
-    .data(graph.links)
+    .data(graph.links.filter(d => d.similarity > 0))
     .join("line")
     .attr("class", "link")
+    .attr("source", d => d.source)
+    .attr("target", d => d.target)
     .attr("stroke-width", d => Math.sqrt(d.similarity) * 2)
     .attr("x1", d => {
         const x = nodePositions.get(d.source)?.x;
@@ -150,13 +277,13 @@ function updateGraph(width, height) {
         if (y === undefined) console.log("Missing target node:", d.target);
         return y || 0;
     });
-    console.log("Links updated:", link.size());
 
     // Update nodes
     const node = svg.selectAll(".node")
         .data(graph.nodes)
         .join("circle")
         .attr("class", "node")
+        .attr("id", d => d.id)
         .attr("r", nodeRadius)
         .attr("cx", d => nodePositions.get(d.id)?.x || 0)
         .attr("cy", d => nodePositions.get(d.id)?.y || 0)
@@ -167,7 +294,6 @@ function updateGraph(width, height) {
             return orderA - orderB;
         });
 
-    console.log("Nodes updated:", node.size());
 
     node.on("click", handleNodeClick)
         .on("mouseover", handleNodeHover)
@@ -175,7 +301,6 @@ function updateGraph(width, height) {
 }
 
 function handleBackgroundClick() {
-    console.log("Background clicked");
     selectedNode = null;
     resetGraphStyles();
     updateInfoPanel(null);  // Clear the info panel
@@ -207,28 +332,87 @@ function drag(simulation) {
 
 function handleNodeClick(event, d) {
     event.stopPropagation();
-    console.log(selectedNode);
+    resetGraphStyles();
+    unhighlightNode(d);
+    highlightNode(d, 'selected', false);
     if (selectedNode === d) {
         selectedNode = null;
         resetGraphStyles();
     } else {
         selectedNode = d;
-        highlightNode(d, 'selected');
     }
     updateInfoPanel(d);
+    showTooltip(d);
+}
+
+function highlightHoveredNode(d) {
+    if (selectedNode === d || d.highlighted){
+        resetGraphStyles();
+        unhighlightNode(d);
+    }
+    highlightNode(d, 'hovered', false);
 }
 
 function handleNodeHover(event, d) {
-    highlightNode(d, 'hovered');
+    highlightHoveredNode(d);
+    updateInfoPanel(d);
+    // Show tooltip
+    const tooltip = showTooltip(d);
+
+}
+
+function showTooltip(d) {
+    const tooltip = d3.select("body").append("div")
+        .attr("class", "tooltip")
+        .style("opacity", 0);
+
+    const nodeElement = d3.select(`.node[id="${d.id}"]`)
+    const nodeBox = nodeElement.node().getBBox();
+    const svgRect = svg.node().getBoundingClientRect();
+    const xPosition = svgRect.left + nodeBox.x + nodeBox.width + 10; // 10px to the right of the node
+    const yPosition = svgRect.top + nodeBox.y - 10; // 10px above the node
+
+    tooltip.transition()
+        .duration(200)
+        .style("opacity", .9);
+
+    tooltip.html(`Layer ${d.layer}, Feature ${d.feature}`)
+        .style("left", xPosition + "px")
+        .style("top", yPosition + "px");
+
+    return tooltip;
 }
 
 function handleNodeLeave(event, d) {
+    unhighlightNode(d);
+    resetGraphStyles();
     if (selectedNode) {
-        highlightNode(selectedNode, 'selected');
+        unhighlightNode(selectedNode);
+        highlightNode(selectedNode, 'selected', false);
+        updateInfoPanel(selectedNode);
+    }
+    else {
+        updateInfoPanel(null);
     }
 }
 
-function highlightNode(d, highlightType) {
+function unhighlightNode(d) {
+    d.highlighted = null;
+    const neighbors = nodeNeighbors.get(d.id);
+    const neighborNodeIds = neighbors.nodes;
+    
+    neighborNodeIds.forEach(nodeId => {
+        const node = graph.nodes.find(n => n.id === nodeId);
+        if (node.highlighted) {
+            unhighlightNode(node);
+        }
+    });
+
+}
+
+function highlightNode(d, highlightType, distant = false) {
+    // if (highlightType === d.highlighted) return;
+    d.highlighted = highlightType;
     const neighbors = nodeNeighbors.get(d.id);
     const neighborNodeIds = neighbors.nodes;
     const connectedNodes = new Set([d]);
@@ -241,27 +425,38 @@ function highlightNode(d, highlightType) {
 
     const connectedLinks = neighbors.edges;
 
-    // Apply new highlight classes based on highlightType
-    if (highlightType === 'selected' || highlightType === 'hovered') {
-        svg.selectAll(".node")
-            .classed(`${highlightType}-node`, node => node === d)
-            .classed(`${highlightType}-neighbor`, node => connectedNodes.has(node) && node !== d);
+    const nodeClass = distant ? `${highlightType}-distant-node` : `${highlightType}-node`;
+    const edgeClass = distant ? `${highlightType}-distant-edge` : `${highlightType}-edge`;
 
-        svg.selectAll(".link")
-            .classed(`${highlightType}-edge`, link => connectedLinks.has(link));
-    }
+    nodeSvg = svg.select(`.node[id="${d.id}"]`)
+        .classed(nodeClass, true);
+
+    connectedLinks.forEach(link => {
+        const linkElement = svg.select(`.link[source="${link.source}"][target="${link.target}"]`)
+        linkElement.classed(edgeClass, true);
+    });
+
+    neighborNodeIds.forEach(nodeId => {
+        const node = graph.nodes.find(n => n.id === nodeId);
+        if (node && !node.highlighted) {
+            highlightNode(node, highlightType, true);
+        }
+    });
 }
 
 function resetGraphStyles() {
     svg.selectAll(".node")
-        .classed("selected-node", false)
-        .classed("selected-neighbor", false)
-        .classed("hovered-node", false)
-        .classed("hovered-neighbor", false);
+        .attr("class", "node");
 
     svg.selectAll(".link")
-        .classed("selected-edge", false)
-        .classed("hovered-edge", false);
+        .attr("class", "link");
+    d3.select('.tooltip').remove();
+}
 
-    selectedNode = null;
+function highlightOneNode(d, highlightType) {
+    const nodeClass = `${highlightType}-node`;
+    console.log("nodeClass", nodeClass);
+    nodeSvg = svg.select(`.node[id="${d.id}"]`)
+        .attr("class", "node")
+        .classed(nodeClass, true);
 }

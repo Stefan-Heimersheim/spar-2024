@@ -10,17 +10,79 @@ function initializeGraph() {
         console.log("Container initialized with dimensions:", width, height);
         svg = svgElement;  // Assign to the global svg variable
 
-        fetch('sample_graph.json')
-            .then(response => response.json())
-            .then(data => {
-                console.log("Data loaded:", data);
-                graph = data;
-                initializeNodeNeighbors();
-                console.log("Graph nodes:", graph.nodes.length, "Graph links:", graph.links.length);
-                updateGraph(width, height);
-            })
-            .catch(error => console.error("Error loading data:", error));
+        loadSampleList().then(() => {
+            loadSelectedSample();
+        });
     });
+}
+
+function loadSampleList() {
+    // Hardcoded list of sample files
+    const sampleFiles = [
+        'how_are_you.json',
+        'klara_and_the_sun.json',
+        'abstract.json',
+        // Add more sample files as needed
+    ];
+
+    const sampleSelect = document.getElementById('sample-select');
+    sampleFiles.forEach(file => {
+        const option = document.createElement('option');
+        option.value = file;
+        option.textContent = file.replace('.json', '');
+        sampleSelect.appendChild(option);
+    });
+    sampleSelect.addEventListener('change', loadSelectedSample);
+
+    return Promise.resolve(); // Return a resolved promise to maintain the chain
+}
+
+function loadSelectedSample() {
+    const sampleSelect = document.getElementById('sample-select');
+    const selectedSample = sampleSelect.value;
+    
+    fetch(`./graph_samples/${selectedSample}`)
+        .then(response => response.json())
+        .then(data => {
+            console.log("Data loaded:", data);
+            data.links = data.links.filter(link => link.similarity > 0);
+            
+            // Apply sentence case to node explanations
+            data.nodes.forEach(node => {
+                if (node.explanation) {
+                    node.explanation = toSentenceCase(node.explanation);
+                }
+            });
+
+            graph = data;
+            initializeNodeNeighbors();
+            console.log("Graph nodes:", graph.nodes.length, "Graph links:", graph.links.length);
+
+            // Update prompt
+            const promptElement = document.getElementById('prompt-text');
+            if (data.graph && data.graph.prompt) {
+                promptElement.textContent = data.graph.prompt;
+            } else {
+                promptElement.textContent = "No prompt available.";
+            }
+
+            // Add graph description to the info panel
+            const graphDescriptionElement = document.getElementById('graph-description');
+            if (data.graph && data.graph.description) {
+                graphDescriptionElement.textContent = data.graph.description;
+            } else {
+                graphDescriptionElement.textContent = "No graph description available.";
+            }
+
+            const { width, height } = svg.node().getBoundingClientRect();
+            updateGraph(width, height);
+        })
+        .catch(error => console.error("Error loading data:", error));
+}
+
+// Helper function to convert a string to sentence case
+function toSentenceCase(str) {
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
 
 function ensureDOMLoaded(callback) {
@@ -44,6 +106,14 @@ ensureDOMLoaded(() => {
                 const { width, height } = svg.node().getBoundingClientRect();
                 updateGraph(width, height);
             });
+        });
+
+        // Add event listener for collapsible settings
+        const collapsible = document.querySelector('.collapsible h3');
+        collapsible.addEventListener('click', () => {
+            collapsible.parentElement.classList.toggle('active');
+            const arrow = collapsible.querySelector('.arrow');
+            arrow.textContent = collapsible.parentElement.classList.contains('active') ? '▼' : '▶';
         });
     });
 });

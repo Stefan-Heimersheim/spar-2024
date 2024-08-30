@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selection Viewer</title>
+    <!-- Use base_path to correctly locate the CSS file -->
+    <link rel="stylesheet" href="{{ base_path }}static/styles.css">
+</head>
+<body>
+    <h1>Selection Viewer</h1>
+
+    <!-- Root Structure -->
+    <div class="root-structure">
+        <h2>Directories</h2>
+        <ul>
+            {% for folder in root_structure %}
+                <li><a href="{{ base_path }}{{ folder }}/index.html">{{ folder }}</a></li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <hr>
+
+    <!-- Subdirectory Structure -->
+    <div class="directory-structure">
+        {% for folder, content in subdir_structure.items() %}
+            <div id="{{ folder }}" class="folder">
+                <h2>{{ folder }}</h2>
+                <ul>
+                    {% for file in content['files'] %}
+                        <li>
+                            <!-- Direct link to the file without /view/ -->
+                            <a href="{{ base_path }}{{ folder }}/{{ file }}">{{ file }}</a>
+                        </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

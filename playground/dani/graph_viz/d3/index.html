@@ -13,17 +13,36 @@
             <div id="graph-inner-container"></div>
         </div>
         <div id="info-panel">
-            <h2>Feature Information</h2>
-            <p id="node-info">Click on a node to see information</p>
-            <div id="settings">
-                <h3>Feature Sorting</h3>
-                <label>
-                    <input type="radio" name="layer-sort" value="minimize-crossings" checked> Minimize Crossings
-                </label>
-                <br>
-                <label>
-                    <input type="radio" name="layer-sort" value="feature-index"> Feature Index
-                </label>
+            <div id="graph-info">
+                <h2>SAE Feature Graph Browser</h2>
+                <p id="graph-description"></p>
+                <h3>Prompt</h3>
+                <p id="prompt-text"></p>
+            </div>
+            <h3>Feature Information</h3>
+            <div id="feature-details">
+                <p>Click on a node to see information</p>
+            </div>
+            <div class="collapsible">
+                <h3><span class="arrow">▶</span> Settings</h3>
+                <div class="content">
+                    <h4>Sample</h4>
+                    <select id="sample-select">
+                        <!-- Options will be populated dynamically -->
+                    </select>
+                    <h4>Feature Sorting</h4>
+                    <label>
+                        <input type="radio" name="layer-sort" value="minimize-crossings" checked> Minimize Crossings
+                    </label>
+                    <br>
+                    <label>
+                        <input type="radio" name="layer-sort" value="feature-index"> Feature Index
+                    </label>
+                    <br>
+                    <label>
+                        <input type="radio" name="layer-sort" value="maximize-vertical-lines"> Maximize Vertical Lines
+                    </label>
+                </div>
             </div>
         </div>
     </div>

@@ -1,20 +1,77 @@
-function updateInfoPanel(d) {
-    const infoPanel = document.getElementById("node-info");
-    if (d) {
-        let html = `<h3>Layer ${d.layer} Feature ${d.feature}</h3>`;
-        html += `<p>${d.explanation}</p>`;
-        html += "<h4>Connected Features:</h4>";
+function updateInfoPanel(node) {
+    const infoPanel = document.getElementById('feature-details');
+    if (!node) {
+        infoPanel.innerHTML = '<p>Click on a node to see information</p>';
+        return;
+    }
 
-        graph.links.forEach(link => {
-            if (link.source === d || link.target === d) {
-                const connectedNode = link.source === d ? link.target : link.source;
-                html += `<p>Layer ${connectedNode.layer} Feature ${connectedNode.feature}: ${connectedNode.explanation}</p>`;
-                html += `<p>Similarity: ${link.similarity.toFixed(2)}</p>`;
-            }
+    const [layer, feature] = node.id.split('_');
+    const neighbors = nodeNeighbors.get(node.id);
+    const url = `https://www.neuronpedia.org/gpt2-small/${layer}-res-jb/${feature}`;
+
+    let html = `
+        <h3>Layer ${layer}, Feature ${feature}<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="external-link-icon.png" alt="Neuronpedia" style="width: 16px; height: 16px;">
+        </a></h3>
+        
+        <p>${node.explanation}</p>
+        <h4>Connected Features:</h4>
+    `;
+
+    if (neighbors.nodes.size === 0) {
+        html += '<p>None</p>';
+    } else {
+        // Create an array of neighbor objects with their details
+        const neighborDetails = Array.from(neighbors.nodes).map(neighborId => {
+            const neighborNode = graph.nodes.find(n => n.id === neighborId);
+            const [neighborLayer, neighborFeature] = neighborId.split('_');
+            const similarity = graph.links.find(l => 
+                (l.source === node.id && l.target === neighborId) || 
+                (l.source === neighborId && l.target === node.id)
+            ).similarity;
+            const link = `https://www.neuronpedia.org/gpt2-small/${neighborLayer}-res-jb/${neighborFeature}`;
+            return { neighborLayer, neighborFeature, neighborNode, similarity, link };
         });
 
-        infoPanel.innerHTML = html;
-    } else {
-        infoPanel.innerHTML = "Click on a node to see information";
+        // Sort neighbors by similarity in descending order
+        neighborDetails.sort((a, b) => b.similarity - a.similarity);
+
+        html += `
+        <table>
+            <tr><th>Layer</th><th>Feature</th><th>Explanation</th><th>Similarity</th><th>Link</th></tr>
+        `;
+
+        neighborDetails.forEach(({ neighborLayer, neighborFeature, neighborNode, similarity, link }) => {
+            html += `
+                <tr data-node-id="${neighborNode.id}" class="info-table-row">
+                    <td>${neighborLayer}</td>
+                    <td>${neighborFeature}</td>
+                    <td>${neighborNode.explanation}</td>
+                    <td class="similarity">${similarity.toFixed(2)}</td>
+                    <td><a href="${link}" target="_blank" rel="noopener noreferrer">
+                        <img src="external-link-icon.png" alt="Neuronpedia" style="width: 16px; height: 16px;">
+                    </a></td>
+                </tr>
+            `;
+        });
+
+        html += '</table>';
     }
+
+    infoPanel.innerHTML = html;
+
+    // Add event listeners to table rows
+    const tableRows = infoPanel.querySelectorAll('table tr[data-node-id]');
+    tableRows.forEach(row => {
+        row.addEventListener('mouseenter', () => {
+            const nodeId = row.getAttribute('data-node-id');
+            const hoveredNode = graph.nodes.find(n => n.id === nodeId);
+            highlightOneNode(hoveredNode, 'hovered');
+        });
+        row.addEventListener('mouseleave', () => {
+            const nodeId = row.getAttribute('data-node-id');
+            const hoveredNode = graph.nodes.find(n => n.id === nodeId);
+            handleNodeLeave(null, hoveredNode);
+            // resetGraphStyles();
+        });
+    });
 }
