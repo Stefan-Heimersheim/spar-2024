@@ -20,6 +20,20 @@ function loadSampleList() {
     // Hardcoded list of sample files
     const sampleFiles = [
         'abstract.json',
+        'ediz_test.json',
+        'graph_10.json',
+        'graph_11.json',
+        'graph_12.json',
+        'graph_13.json',
+        'graph_14.json',
+        'graph_15.json',
+        'graph_16.json',
+        'graph_17.json',
+        'graph_18.json',
+        'graph_19.json',
+        'graph_7.json',
+        'graph_8.json',
+        'graph_9.json',
         'how_are_you.json',
         'klara_and_the_sun.json',
         // Add more sample files as needed
