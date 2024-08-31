@@ -39,6 +39,7 @@ function loadSampleList() {
         'graph_9.json',
         'how_are_you.json',
         'klara_and_the_sun.json',
+        'pearson_leiden_modularity_threshold_0.1_masked_single.json',
         // Add more sample files as needed
     ];
 
