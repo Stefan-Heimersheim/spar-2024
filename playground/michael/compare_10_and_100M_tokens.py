@@ -24,7 +24,7 @@ similarities_100 = load_similarity_data([f'{folder}/{get_filename(measure_name, 
 
 
 # %%
-# Analyze difference of these two matrices
+# Analyze difference of these two matrices with respect to NaN entries
 nan10 = np.isnan(similarities_10)
 nan100 = np.isnan(similarities_100)
 
@@ -36,57 +36,64 @@ neither_nan = np.sum(~nan10 & ~nan100)
 confusion_matrix = np.array([[neither_nan, only_arr2_nan], [only_arr1_nan, both_nan]])
 
 
-# %%
-labels = ['Not NaN', 'NaN']
+def plot_confusion_matrix(cm, classes, cmap=plt.cm.Blues):
+    percentages = cm.astype('float') / cm.sum()
+
+    fig, ax = plt.subplots(figsize=(10, 8))
+    im = ax.imshow(cm, interpolation='nearest', cmap=cmap)
+    ax.figure.colorbar(im, ax=ax)
     
-fig = go.Figure(data=go.Heatmap(
-                z=confusion_matrix,
-                x=labels,
-                y=labels,
-                hoverongaps=False,
-                text=confusion_matrix,
-                texttemplate="%{text}",
-                colorscale='Blues'))
+    ax.set(xticks=np.arange(cm.shape[1]),
+           yticks=np.arange(cm.shape[0]),
+           xticklabels=classes, yticklabels=classes,
+           title='Confusion matrix of NaN values for Pearson correlation over 10M and 100M tokens',
+           ylabel='Pearson correlation over 10M tokens',
+           xlabel='Pearson correlation over 100M tokens')
 
-total = np.sum(confusion_matrix)
-accuracy = (confusion_matrix[0, 0] + confusion_matrix[1, 1]) / total if total > 0 else 0
+    plt.setp(ax.get_xticklabels(), ha="right")
 
-fig.update_layout(
-    title=f'Confusion Matrix of Pearson Correlation NaN Entries (Accuracy: {accuracy:.1%})',
-    font=dict(size=10),
-    xaxis_title='100M tokens',
-    yaxis_title='10M tokens')
+    thresh = cm.max() / 2.
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            ax.text(j, i, f'{cm[i, j]:,} ({percentages[i, j]:.1%})',
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+    fig.tight_layout()
+    
+    return ax
 
-fig.show()
+
+plot_confusion_matrix(confusion_matrix, classes=['Not NaN', 'NaN'])
+plt.show()
 
 
 # %%
+# Plot histogram of absolute difference of entries
 diff_flat = np.abs(similarities_10 - similarities_100)[~nan10 & ~nan100]
 
-
- # %%
 num_bins = 200
 
-fig, ax = plt.subplots(figsize=(10, 6))
-    
-# Plot the histogram
+fig, ax = plt.subplots(figsize=(8, 8))
 ax.hist(diff_flat, bins=num_bins, range=(0, 2))
 
-# Set titles and labels
-ax.set_title(f"Histogram of Absolute Differences Between Similarity Matrices (Mean: {diff_flat.mean():.5f})")
-ax.set_xlabel("Absolute Difference")
-ax.set_ylabel("Frequency")
+ax.set_title(f"Histogram of absolute differences between similarity matrices")
+ax.set_xlabel("Absolute difference")
+ax.set_ylabel("Number of feature pairs")
 
-# Set x-axis range 
 ax.set_xlim(0, 2)
 ax.set_yscale('log')
 
 # Add grid for better readability
 ax.grid(True, linestyle='--', alpha=0.7)
 
+line_x = diff_flat.mean()
+plt.axvline(x=line_x, color='red', linestyle='--', linewidth=3)
+
+# Add the label
+plt.text(line_x + 0.02, plt.ylim()[1] / 2, f'Mean: {line_x:.5f}', 
+         horizontalalignment='left',
+         verticalalignment='top',
+         rotation=90,
+         color='red')
+
 plt.show()
-
-
-# %%
-n_zeros = (diff_flat <= 0.001).sum()
-n_zeros / len(diff_flat)
