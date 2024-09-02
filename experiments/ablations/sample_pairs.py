@@ -16,25 +16,24 @@ from dataclasses import dataclass
 
 @dataclass
 class Args:
-    measure: Measure = Measure.jaccard
+    measure: Measure = Measure.sufficiency
     samples_per_bin: int = 10
     save: bool = True
 rng = np.random.default_rng()
 args = Args()
 # %%
 print("Reading full interaction scores")
-if args.measure == Measure.pearson:
-    filename = "artefacts/similarity_measures/pearson_correlation/res_jb_sae_feature_similarity_pearson_correlation_1M_0.0_0.1.npz"
-    with open(filename, 'rb') as data:
-        interaction_scores = np.load(data)['arr_0']
-    bins = np.linspace(0.01, 1.0, 10)
-elif args.measure == Measure.jaccard:
-    filename = "artefacts/jaccard/jaccard_2024-07-02-a.npz"
-    with open(filename, 'rb') as data:
-        interaction_scores = np.load(data)['arr_0']
-    bins = np.linspace(0.01, 1.0, 10)
-else:
+bin_bounds = np.linspace(0.01, 1.0, 11)
+measure_to_filename = {
+    Measure.pearson: "artefacts/similarity_measures/pearson_correlation/res_jb_sae_feature_similarity_pearson_correlation_1M_0.0_0.1.npz",
+    Measure.jaccard: "artefacts/similarity_measures/jaccard_similarity_relative_activation/res_jb_sae_feature_similarity_jaccard_similarity_relative_activation_10M_0.2_0.1.npz",
+    Measure.necessity: "artefacts/similarity_measures/necessity_relative_activation/res_jb_sae_feature_similarity_necessity_relative_activation_10M_0.2_0.1.npz",
+    Measure.sufficiency: "artefacts/similarity_measures/sufficiency_relative_activation/res_jb_sae_feature_similarity_sufficiency_relative_activation_10M_0.2_0.1.npz",
+}
+if args.measure not in measure_to_filename:
     raise NotImplementedError(f"Haven't gotten around to {args.measure} yet")
+filename = measure_to_filename[args.measure]
+interaction_scores = np.load(filename)['arr_0']
 num_layers, d_sae, _ = interaction_scores.shape
 
 # %% sample across all layers
@@ -45,8 +44,8 @@ for layer_idx in range(num_layers):
     xs = []
     ys = []
 
-    for i in range(len(bins) - 1):
-        lower, upper = bins[i], bins[i+1]
+    for i in range(len(bin_bounds) - 1):
+        lower, upper = bin_bounds[i], bin_bounds[i+1]
         if lower <= 0 <= upper:
             continue
         
