@@ -46,6 +46,7 @@ When trying to understand the inner workings of Large Language models (LLMs), it
 graph = get_active_feature_graph_for_prompt(model, saes, prompt, similarities, activation_threshold_2, artefacts_folder=artefacts_folder, verbose=True)
 graph.graph['description'] = f'This graph\'s nodes are the SAE features that are active (i.e., whose activation is {activation_threshold_2 or 0} or higher) on the final token of the prompt. Its edges represent the similarity values of the {measure_name} measure, computed over {n_tokens} tokens with activation threshold {activation_threshold_1} (absolute values below {clamping_threshold} are clamped to zero). The explanations of the features are created by GPT-3.5-turbo and downloaded from Neuronpedia.'
 graph.graph['prompt'] = prompt
+graph.graph['clamping_threshold'] = clamping_threshold
 
 # Save graph to file
 save_graph_to_json(graph, f'{artefacts_folder}/active_feature_graphs/{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}_{sae_name}_active_feature_graph_{measure_name}_.json')
