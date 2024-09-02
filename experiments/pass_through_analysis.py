@@ -31,13 +31,13 @@ np.nan_to_num(similarities, copy=False)
 
 
 # %%
-bound = 0.5
+pass_through_threshold = 0.4
 
 forward_max = similarities.max(axis=2)
-forward_pass_through = (forward_max >= bound).sum(axis=1)
+forward_pass_through = (forward_max >= pass_through_threshold).sum(axis=1)
 
 backward_max = similarities.max(axis=1)
-backward_pass_through = (backward_max >= bound).sum(axis=1)
+backward_pass_through = (backward_max >= pass_through_threshold).sum(axis=1)
 
 forward_disappearing = d_sae - forward_pass_through
 backward_appearing = d_sae - backward_pass_through
@@ -74,4 +74,4 @@ output_folder = '../artefacts/pass_through_analysis'
 if not os.path.exists(output_folder):
     os.mkdir(output_folder)
 
-fig.write_image(f"{output_folder}/{sae_name}_pass_through_features_{measure_name}_{tokens}.png")
+fig.write_image(f"{output_folder}/{sae_name}_pass_through_features_{measure_name}_{tokens}_{pass_through_threshold:.1f}.png")
