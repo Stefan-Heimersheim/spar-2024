@@ -14,7 +14,7 @@ from visualization import get_active_feature_graph_for_prompt, save_graph_to_jso
 # %%
 # Init device and folder
 if torch.cuda.is_available():
-    device = 'cuda:3'
+    device = 'cuda:5'
 elif torch.backends.mps.is_available():
     device = 'mps'
 else:
@@ -39,9 +39,11 @@ similarities = load_similarity_data([f'{artefacts_folder}/similarity_measures/{m
 
 # %%
 # Create graph for specific prompt
-prompt = """
-When trying to understand the inner workings of Large Language models (LLMs), it is striking that the contents of a transformer’s residual stream are difficult to interpret. However, Sparse Autoencoders (SAEs) have shown promising progress by projecting the residual stream into a higher-dimensional space where interpretable concepts (features) are represented as single directionsdimensions. In this paper, we aim to provide an understanding of how the features of SAEs in different layers of the model are related by building a graph relating features between adjacent layers. We show that these measures might be suited for automated interpretability research, and provide examples of macroscopic structural patterns across many features, as well as individual feature relationships that can be uncovered in GPT-2-small by this novel approach.
-"""
+# prompt = """
+# When trying to understand the inner workings of Large Language models (LLMs), it is striking that the contents of a transformer’s residual stream are difficult to interpret. However, Sparse Autoencoders (SAEs) have shown promising progress by projecting the residual stream into a higher-dimensional space where interpretable concepts (features) are represented as single directionsdimensions. In this paper, we aim to provide an understanding of how the features of SAEs in different layers of the model are related by building a graph relating features between adjacent layers. We show that these measures might be suited for automated interpretability research, and provide examples of macroscopic structural patterns across many features, as well as individual feature relationships that can be uncovered in GPT-2-small by this novel approach.
+# """
+
+prompt = 'When Mary and John went to the store, John gave a drink to'
 
 graph = get_active_feature_graph_for_prompt(model, saes, prompt, similarities, activation_threshold_2, artefacts_folder=artefacts_folder, verbose=True)
 graph.graph['description'] = f'This graph\'s nodes are the SAE features that are active (i.e., whose activation is {activation_threshold_2 or 0} or higher) on the final token of the prompt. Its edges represent the similarity values of the {measure_name} measure, computed over {n_tokens} tokens with activation threshold {activation_threshold_1} (absolute values below {clamping_threshold} are clamped to zero). The explanations of the features are created by GPT-3.5-turbo and downloaded from Neuronpedia.'
