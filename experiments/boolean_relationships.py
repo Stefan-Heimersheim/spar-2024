@@ -17,13 +17,13 @@ import sys
 import pickle
 import random
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '../..', 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from similarity_helpers import load_similarity_data, get_filename
 
 
 # %%
-artefacts_folder = '../../artefacts'
+artefacts_folder = '../artefacts'
 input_artefact = 'feature_similarity'
 sae_name = 'res_jb_sae'
 n_layers = 12
@@ -54,7 +54,7 @@ print('Done!')
 
 # %%
 # Load explanations
-with open(f'../../artefacts/explanations/{sae_name}_explanations.pkl', 'rb') as f:
+with open(f'../artefacts/explanations/{sae_name}_explanations.pkl', 'rb') as f:
     explanations = pickle.load(f)
 
 
