@@ -19,3 +19,6 @@ All experiments in this folder correspond to specific results and/or plots in th
 - [TODO] Distribution of similarity values:
     - `experiments/activation_histograms/activation_histograms.py`
     - `artefacts/`
+- [DONE] Boolean Relationships
+    - `experiments/boolean_relationships.py`
+    - (no artefacts, only terminal output)
