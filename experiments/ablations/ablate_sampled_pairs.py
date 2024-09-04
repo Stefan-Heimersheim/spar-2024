@@ -1,6 +1,6 @@
 # %%
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../', 'src'))
@@ -15,10 +15,17 @@ from src.enums import Measure
 from collections import defaultdict
 from dataclasses import dataclass
 
+while True:
+    try:
+        measure = getattr(Measure, input("Please enter measure value:"))
+        break
+    except AttributeError as e:
+        print(e)
+
 # %%
 @dataclass
 class Args:
-    measure = Measure.jaccard
+    measure = measure
     nb = 128
     bs = 64
     count = 100
@@ -57,7 +64,7 @@ for layer_idx in range(args.first_layer, args.last_layer):
             mean_diff_results[layer_idx][prev_idx_idx] = (
                 masked_mean_diffs[next_feat]  
             )
-    filename = f"artefacts/ablations/pearson/count_{args.count}__up_til_layer_{layer_idx}__toks_{args.nb * args.bs * 128}"
+    filename = f"artefacts/ablations/{args.measure.value}/count_{args.count}__up_til_layer_{layer_idx}__toks_{args.nb * args.bs * 128}"
     print(f"Saving {filename}")
     np.savez(filename, mean_diff_results)
-np.savez(f"artefacts/ablations/pearson/count_{args.count}__final__toks_{args.nb * args.bs * 128}", mean_diff_results)
+np.savez(f"artefacts/ablations/{args.measure.value}/count_{args.count}__final__toks_{args.nb * args.bs * 128}", mean_diff_results)
