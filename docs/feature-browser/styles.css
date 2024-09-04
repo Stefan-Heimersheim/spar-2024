@@ -108,74 +108,87 @@ body, html {
 }
 
 .node {
-  fill: #ccc;
+  /* fill: #ccc; */
   stroke: #999;
+  opacity: 0.5;
   stroke-width: 1px;
 }
 
+.node.row-hovered {
+  opacity: 1;
+  stroke-width: 4px;
+  fill: red;
+}
+
 .node.selected-node {
-  fill: #4285f4;
-  stroke: #2a56c6;
-  stroke-width: 2px;
+  /* fill: #4285f4;
+  stroke: #2a56c6; */
+  opacity: 1;
+  stroke-width: 6px;
 }
 
 .node.selected-neighbor {
-  fill: #8ab4f8;
-  stroke: #4285f4;
+  /* fill: #8ab4f8;
+  stroke: #4285f4; */
+  opacity: 1;
   stroke-width: 2px;
 }
 
 .node.hovered-node {
-  fill: #ff7f0e;
-  stroke: #e65c00;
-  stroke-width: 2px;
+  /* fill: #ff7f0e;
+  stroke: #e65c00; */
+  opacity: 1;
+  stroke-width: 6px;
 }
 
 .node.hovered-neighbor {
-  fill: #ffd1a3;
-  stroke: #ff7f0e;
+  /* fill: #ffd1a3;
+  stroke: #ff7f0e; */
+  opacity: 1;
   stroke-width: 2px;
 }
 
 .link {
-  stroke: #999;
+  /* stroke: #999; */
   stroke-opacity: 0.6;
 }
 
 .link.selected-edge {
-  stroke: #4285f4;
+  /* stroke: #4285f4; */
   stroke-opacity: 1;
   /* stroke-width: 2px; */
 }
 
 .link.hovered-edge {
-  stroke: #ff7f0e;
+  /* stroke: #ff7f0e; */
   stroke-opacity: 1;
   /* stroke-width: 2px; */
 }
 
 .node.selected-distant-node,
 .node.selected-distant-neighbor {
-    fill: #c6d9fd;
-    stroke: #8ab4f8;
-    stroke-width: 1.5px;
+    /* fill: #c6d9fd;
+    stroke: #8ab4f8; */
+    opacity: 1;
+    /* stroke-width: 1.5px; */
 }
 
 .node.hovered-distant-node,
 .node.hovered-distant-neighbor {
-    fill: #ffe8cc;
-    stroke: #ffd1a3;
-    stroke-width: 1.5px;
+    /* fill: #ffe8cc;
+    stroke: #ffd1a3; */
+    opacity: 1;
+    stroke-width: 2px;
 }
 
 .link.selected-distant-edge {
-    stroke: #c6d9fd;
+    /* stroke: #c6d9fd; */
     stroke-opacity: 0.8;
     /* stroke-width: 1.5px; */
 }
 
 .link.hovered-distant-edge {
-    stroke: #ffe8cc;
+    /* stroke: #ffe8cc; */
     stroke-opacity: 0.8;
     /* stroke-width: 1.5px; */
 }

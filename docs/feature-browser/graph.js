@@ -1,3 +1,5 @@
+const communityColorScale = d3.scaleOrdinal(d3.schemeCategory10);
+
 function initializeSVG() {
     console.log("Initializing SVG...");
     return new Promise(resolve => {
@@ -224,7 +226,7 @@ function updateGraph(width, height) {
             nodesByLayer = getNodesByLayerMaximizeVerticalLines(graph);
             break;
         default:
-            nodesByLayer = getNodesByLayerFeatureIndex(graph);
+            nodesByLayer = getNodesByLayerMaximizeVerticalLines(graph);
     }
 
     console.log("Nodes by layer:", nodesByLayer);
@@ -276,7 +278,16 @@ function updateGraph(width, height) {
         const y = nodePositions.get(d.target)?.y;
         if (y === undefined) console.log("Missing target node:", d.target);
         return y || 0;
-    });
+    })
+    .attr("stroke", d => {
+        const sourceNode = graph.nodes.find(n => n.id === d.source);
+        const targetNode = graph.nodes.find(n => n.id === d.target);
+        if (sourceNode && targetNode && sourceNode.community === targetNode.community) {
+            return communityColorScale(sourceNode.community);
+        }
+        return "gray";
+    })
+    .attr("opacity", 0.5);
 
     // Update nodes
     const node = svg.selectAll(".node")
@@ -284,20 +295,38 @@ function updateGraph(width, height) {
         .join("circle")
         .attr("class", "node")
         .attr("id", d => d.id)
+        .attr("community", d => d.community || 0)
         .attr("r", nodeRadius)
         .attr("cx", d => nodePositions.get(d.id)?.x || 0)
         .attr("cy", d => nodePositions.get(d.id)?.y || 0)
-        .attr("fill", d => d3.schemeCategory10[d.layer % 10])
+        .attr("opacity", 0.5)
+        .attr("fill", d => {
+            const baseColor = communityColorScale(d.community);
+            return d3.color(baseColor); // Make the color dim
+        })
         .sort((a, b) => {
             const orderA = nodePositions.get(a.id)?.renderOrder || 0;
             const orderB = nodePositions.get(b.id)?.renderOrder || 0;
             return orderA - orderB;
-        });
+        })
+        .raise();
 
-
-    node.on("click", handleNodeClick)
-        .on("mouseover", handleNodeHover)
-        .on("mouseout", handleNodeLeave);
+    // Update node styles for hovering and selection
+    node.on("mouseover", function(event, d) {
+        // d3.select(this).attr("fill", d => {
+        //     const baseColor = communityColorScale(d.community);
+        //     return d3.color(baseColor); // Increase opacity on hover
+        // });
+        handleNodeHover(event, d);
+    })
+    .on("mouseout", function(event, d) {
+        // d3.select(this).attr("fill", d => {
+        //     const baseColor = communityColorScale(d.community);
+        //     return d3.color(baseColor).copy({opacity: 0.3}); // Return to dim color
+        // });
+        handleNodeLeave(event, d);
+    })
+    .on("click", handleNodeClick);
 }
 
 function handleBackgroundClick() {
@@ -438,7 +467,7 @@ function highlightNode(d, highlightType, distant = false) {
 
     neighborNodeIds.forEach(nodeId => {
         const node = graph.nodes.find(n => n.id === nodeId);
-        if (node && !node.highlighted) {
+        if (node && !node.highlighted && node.community === d.community) {
             highlightNode(node, highlightType, true);
         }
     });
