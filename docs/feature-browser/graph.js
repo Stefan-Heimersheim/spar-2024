@@ -251,9 +251,11 @@ function updateGraph(width, height) {
         });
     });
 
+    const minimumSimilarity = parseFloat(document.getElementById('minimum-similarity').value);
+
     // Update links
     const link = svg.selectAll(".link")
-    .data(graph.links.filter(d => d.similarity > 0))
+    .data(graph.links.filter(d => d.similarity >= minimumSimilarity))
     .join("line")
     .attr("class", "link")
     .attr("source", d => d.source)
@@ -467,7 +469,10 @@ function highlightNode(d, highlightType, distant = false) {
 
     neighborNodeIds.forEach(nodeId => {
         const node = graph.nodes.find(n => n.id === nodeId);
-        if (node && !node.highlighted && node.community === d.community) {
+        // Is the edge similarity greater than the minimum similarity?
+        const minimumSimilarity = parseFloat(document.getElementById('minimum-similarity').value);
+        const link = graph.links.find(l => (l.source === d.id && l.target === node.id) || (l.target === d.id && l.source === node.id));
+        if (node && !node.highlighted && node.community === d.community && link.similarity >= minimumSimilarity) {
             highlightNode(node, highlightType, true);
         }
     });

@@ -173,6 +173,14 @@ ensureDOMLoaded(() => {
             const arrow = collapsible.querySelector('.arrow');
             arrow.textContent = collapsible.parentElement.classList.contains('active') ? '▼' : '▶';
         });
+        // Add event listener for minimum similarity input
+        const minimumSimilarityInput = document.getElementById('minimum-similarity');
+        minimumSimilarityInput.addEventListener('change', () => {
+            let value = parseFloat(minimumSimilarityInput.value);
+            value = Math.max(0.1, Math.min(1, value)); // Clamp value between 0.1 and 1
+            minimumSimilarityInput.value = value.toFixed(1); // Update input value
+            updateGraph();
+        });
     });
 });
 
