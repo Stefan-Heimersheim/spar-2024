@@ -22,6 +22,7 @@ function loadSampleList() {
         'abstract.json',
         'ediz_test.json',
         'how_are_you.json',
+        'ioi.json',
         'jaccard_leiden_modularity_threshold_0.1_masked_single_0.json',
         'jaccard_leiden_modularity_threshold_0.1_masked_single_12.json',
         'jaccard_leiden_modularity_threshold_0.1_masked_single_23.json',
