@@ -36,7 +36,7 @@ num_layers = 12
 d_model = 768
 prepend_bos = True
 num_toks_per_row = 128
-num_rows = 128 # TODO: increase this to 131072
+num_rows = 256 # TODO: increase this to 131072
 batch_size = 32
 MAX_NUM_ACTIVATIONS_PER_LAYER = 500
 NECESSITY_DISAPPEAR_THRESHOLD = 0.4
@@ -76,7 +76,7 @@ data_loader = load_data()
 necessity_scores = np.load("artefacts/similarity_measures/necessity_relative_activation/res_jb_sae_feature_similarity_necessity_relative_activation_10M_0.2_0.1.npz")["arr_0"]
 # %%
 # which ones DID NOT disappear (we want to keep these)
-pass_through_feature_mask = t.BoolTensor(~(np.max(necessity_scores, axis=2) <= NECESSITY_DISAPPEAR_THRESHOLD)).to(device)
+disappearing_features = t.BoolTensor(np.max(necessity_scores, axis=2) <= NECESSITY_DISAPPEAR_THRESHOLD).to(device)
 # %%
 max_activation_based_threshold = 0.7 * t.Tensor(np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']).to(device)
 
@@ -107,7 +107,7 @@ def set_acts_and_mask(activations: t.Tensor, hook: HookPoint):
     curr_layer_ten_percent_max_acts = max_activation_based_threshold[hook.layer() - 1]
     # which ones DID activate at least 10% of their max?
     curr_layer_max_activation_mask = curr_layer_sae_feats > curr_layer_ten_percent_max_acts
-    mask = curr_layer_max_activation_mask & pass_through_feature_mask[hook.layer() - 1]
+    mask = curr_layer_max_activation_mask & disappearing_features[hook.layer() - 1]
     flattened_selected_acts = curr_layer_sae_feats[mask].reshape(-1)
     sae_activations_per_layer[hook.layer()].extend(flattened_selected_acts.tolist())
     return activations
@@ -162,12 +162,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 def get_limits_for_layer(layer_idx):
-    if layer_idx <= 8:
-        return -2, 120, -20, 25
-    elif layer_idx == 9:
-        return -1, 120, -25, 43
+    if layer_idx <= 6:
+        return -1, 60, -15, 15
+    elif layer_idx == 7:
+        return -1, 70, -10, 15
+    elif layer_idx == 8:
+        return -1, 80, -12, 22
     else:
-        return -5, 140, -36, 60
+        return -1, 100, -15, 38
 
 def create_scatterplots(sae_activations_per_layer, error_projections_per_layer):
     fig, axs = plt.subplots(3, 4, figsize=(20, 15), sharex=False, sharey=False)
@@ -199,3 +201,4 @@ def create_scatterplots(sae_activations_per_layer, error_projections_per_layer):
 
 # Example usage
 create_scatterplots(sae_activations_per_layer, error_projections_per_layer)
+# %%
