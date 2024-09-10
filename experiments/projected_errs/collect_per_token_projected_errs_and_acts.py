@@ -75,7 +75,6 @@ data_loader = load_data()
 # %%
 necessity_scores = np.load("artefacts/similarity_measures/necessity_relative_activation/res_jb_sae_feature_similarity_necessity_relative_activation_10M_0.2_0.1.npz")["arr_0"]
 # %%
-# which ones DID NOT disappear (we want to keep these)
 disappearing_features = t.BoolTensor(np.max(necessity_scores, axis=2) <= NECESSITY_DISAPPEAR_THRESHOLD).to(device)
 # %%
 max_activation_based_threshold = 0.7 * t.Tensor(np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']).to(device)
