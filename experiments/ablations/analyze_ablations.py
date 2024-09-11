@@ -31,16 +31,20 @@ pearson_corr_filename = f"artefacts/similarity_measures/pearson_correlation/res_
 with open(pearson_corr_filename, 'rb') as data:
     interaction_data = np.load(data)['arr_0']
 
+# %%
+MEASURE = 'jaccard'
+MEASURE_READABLE = 'Jaccard'
 # %%    
-ablation_0_1 = np.load("artefacts/ablations/pearson/count_90__up_til_layer_1__toks_1048576.npz")['arr_0']
-ablation_2_6 = np.load("artefacts/ablations/pearson/count_90__up_til_layer_6__toks_1048576.npz")['arr_0']
-ablation_7_10 = np.load("artefacts/ablations/pearson/count_90__final__toks_1048576.npz")['arr_0']
-ablation_data = np.concatenate([ablation_0_1[:2], ablation_2_6[2:7], ablation_7_10[7:]], axis=0)
+# ablation_0_1 = np.load("artefacts/ablations/pearson/count_90__up_til_layer_1__toks_1048576.npz")['arr_0']
+# ablation_2_6 = np.load("artefacts/ablations/pearson/count_90__up_til_layer_6__toks_1048576.npz")['arr_0']
+# ablation_7_10 = np.load("artefacts/ablations/pearson/count_90__final__toks_1048576.npz")['arr_0']
+# ablation_data = np.concatenate([ablation_0_1[:2], ablation_2_6[2:7], ablation_7_10[7:]], axis=0)
+ablation_data = np.load(f"artefacts/ablations/jaccard/count_100__final__toks_1048576.npz")['arr_0']
 # %%
 num_layers = ablation_data.shape[0]
 # %%
 # I need to find the indices of the ablated pairs, so that I can look up the corresponding values in the interation data
-indices = np.load(f"artefacts/sampled_interaction_measures/pearson_correlation/evenly_spaced_count_90.npz")['arr_0']
+indices = np.load(f"artefacts/sampled_interaction_measures/jaccard_similarity/count_100.npz")['arr_0']
 
 # %%
 def matrix_summary_statistics(matrix):
@@ -93,9 +97,9 @@ def create_boxplots(xs, ys, bins):
         mean_lines.append(line)
     
     # Set labels and title
-    ax.set_xlabel('pearson corr bin midpoint')
+    ax.set_xlabel(f'{MEASURE_READABLE} bin midpoint')
     ax.set_ylabel('mean ablated diff')
-    ax.set_title('Box Plots of Mean Ablated Diff by Pearson Correlation Bins')
+    ax.set_title(f'Box Plots of Mean Ablated Diff by {MEASURE_READABLE} Bins')
     
     # Set x-ticks to be the middle of each bin
     bin_centers = [(bins[i] + bins[i+1]) / 2 for i in range(len(bins) - 1)]
@@ -121,7 +125,7 @@ plt.clf()
 similarity_scores = sampled_interaction_values
 mean_diffs = ablation_data
 fig, ax = plt.subplots(figsize=(12, 8))
-plt.xlabel("Pearson correlation")
+plt.xlabel(MEASURE_READABLE)
 plt.ylabel("Mean diff in ablated score")
 
 cmap = cm.rainbow
@@ -140,4 +144,5 @@ plt.show()
 
 # %%
 create_boxplots(similarity_scores.flatten(), mean_diffs.flatten(), np.linspace(0.01, 1.0, 10))
+
 # %%

@@ -119,7 +119,6 @@ def compute_projections(activations: t.Tensor, hook: HookPoint):
     )
     decoder_norms = t.norm(prev_layer_sae.W_dec, dim=1)
     projections = dot_product / decoder_norms
-    projections_plus_bias = projections + prev_layer_sae.b_dec
     masked_projections = projections * mask
     projection_sums[hook.layer()-1, :] += masked_projections.sum(dim=(0, 1))
     counts[hook.layer()-1, :] += mask.sum(dim=(0, 1))
