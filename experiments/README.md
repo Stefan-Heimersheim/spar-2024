@@ -22,3 +22,9 @@ All experiments in this folder correspond to specific results and/or plots in th
 - [DONE] Boolean Relationships
     - `experiments/boolean_relationships.py`
     - (no artefacts, only terminal output)
+- [DONE] Comparison of Pearson correlation on 10M and 100M tokens
+    - `experiments/compare_10_and_100M_tokens.py`
+    - (no artefacts, images are terminal output)
+- [DONE] Comparison of centered (i.e., Pearson correlation) and uncentered cosine similarity
+    - `experiments/compare_centered_and_uncentered_cosine.py`
+    - (no artefacts, images are terminal output)
