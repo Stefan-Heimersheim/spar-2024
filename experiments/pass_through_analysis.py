@@ -48,7 +48,7 @@ relative_backward_appearing = backward_appearing / d_sae
 
 labels = [label for layer in range(n_layers) for label in [f'appearing<br>({np.take(relative_backward_appearing, layer, mode="clip"):.1%})', f'Layer {layer}', f'disappearing<br>({np.take(relative_forward_disappearing, layer, mode="clip"):.1%})']][1:-1]
 pos_x = [x for layer in range(n_layers) for x in [(2 * layer) / (2 * n_layers), (2 * layer + 1) / (2 * n_layers), (2 * layer + 2) / (2 * n_layers)]][1:-1]
-pos_y = [y for _ in range(n_layers) for y in [0.2, 0.5, 0.8]][1:-1]
+pos_y = [y for _ in range(n_layers) for y in [0.4, 0.5, 0.6]][1:-1]
 colors = [label for layer in range(n_layers) for label in ['green', f'blue', 'red']][1:-1]
 
 sources = [s for layer in range(n_layers - 1) for s in [3 * layer, 3 * layer, 3 * layer + 2]]
@@ -64,7 +64,7 @@ fig = go.Figure(go.Sankey(
     link = dict(source=sources, target=targets, value=values)
 ))
 
-fig.update_layout(autosize=False, width=150 * n_layers, height=750)
+fig.update_layout(autosize=False, width=100 * n_layers, height=1000, font=dict(size=8))
 
 fig.show()
 
