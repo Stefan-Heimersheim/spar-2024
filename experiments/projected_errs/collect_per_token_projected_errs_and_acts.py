@@ -36,10 +36,11 @@ num_layers = 12
 d_model = 768
 prepend_bos = True
 num_toks_per_row = 128
-num_rows = 256 # TODO: increase this to 131072
+num_rows = 128
 batch_size = 32
 MAX_NUM_ACTIVATIONS_PER_LAYER = 500
 NECESSITY_DISAPPEAR_THRESHOLD = 0.4
+PERCENT_OF_MAX_ACTIVATION = 0.1
 # %%
 def create_id_to_sae() -> typing.Dict[str, SAE]:
     print("Loading SAEs")
@@ -77,7 +78,7 @@ necessity_scores = np.load("artefacts/similarity_measures/necessity_relative_act
 # %%
 disappearing_features = t.BoolTensor(np.max(necessity_scores, axis=2) <= NECESSITY_DISAPPEAR_THRESHOLD).to(device)
 # %%
-max_activation_based_threshold = 0.7 * t.Tensor(np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']).to(device)
+max_activation_based_threshold = PERCENT_OF_MAX_ACTIVATION * t.Tensor(np.load("artefacts/max_sae_activations/res_jb_max_sae_activations_17.5M.npz")['arr_0']).to(device)
 
 # %%
 mask = t.zeros(batch_size, num_toks_per_row, D_SAE).to(device)
@@ -99,19 +100,22 @@ def get_resid_layer_idx(input_string):
     return None
 
 def set_acts_and_mask(activations: t.Tensor, hook: HookPoint):
+    """
+    for a 'prev' layer, define the mask by which features were active and disappearing
+    """
     global mask
-    curr_layer_sae: SAE = id_to_sae[hook.name]
-    curr_layer_sae_feats = curr_layer_sae.encode(activations)
-    # prev_layer_sae_acts = activations
-    curr_layer_ten_percent_max_acts = max_activation_based_threshold[hook.layer() - 1]
+    sae: SAE = id_to_sae[hook.name]
+    sae_acts = sae.encode(activations)
+    sae_act_thresholds = max_activation_based_threshold[hook.layer()]
     # which ones DID activate at least 10% of their max?
-    curr_layer_max_activation_mask = curr_layer_sae_feats > curr_layer_ten_percent_max_acts
-    mask = curr_layer_max_activation_mask & disappearing_features[hook.layer() - 1]
-    flattened_selected_acts = curr_layer_sae_feats[mask].reshape(-1)
+    max_sae_act_mask = sae_acts > sae_act_thresholds
+    mask = max_sae_act_mask & disappearing_features[hook.layer()]
+    flattened_selected_acts = sae_acts[mask].reshape(-1)
     sae_activations_per_layer[hook.layer()].extend(flattened_selected_acts.tolist())
     return activations
 
 def set_err_projections(activations: t.Tensor, hook: HookPoint):
+    """projects the current layer's error onto the previous layer's feature directions"""
     global mask
     curr_layer_sae: SAE = id_to_sae[hook.name]
     prev_layer_name = f"blocks.{hook.layer()-1}.hook_resid_pre"
@@ -126,7 +130,7 @@ def set_err_projections(activations: t.Tensor, hook: HookPoint):
     decoder_norms = t.norm(prev_layer_sae.W_dec, dim=1) # should be 1 but just being explicit for readers
     projections = dot_product / decoder_norms
     
-    flattened_selected_projections = projections[mask]
+    flattened_selected_projections = projections[mask].reshape(-1)
     error_projections_per_layer[hook.layer()-1].extend(flattened_selected_projections.tolist())
     return activations
 
@@ -135,9 +139,14 @@ def is_resid_layer_after_0(input_string):
     if curr_layer_idx == None:
         return False
     return curr_layer_idx > 0
+
+def is_resid_layer_before_11(input_string):
+    curr_layer_idx = get_resid_layer_idx(input_string)
+    if curr_layer_idx == None:
+        return False
+    return curr_layer_idx < 11
     
 # %%
-# TODO: figure out how to record the correct things in each list!
 with torch.no_grad():
     for batch_tokens in tqdm(data_loader):
         model.reset_hooks()
@@ -146,12 +155,12 @@ with torch.no_grad():
             fwd_hooks=[
                 # compute projections for all layers after 0 (the mask was set for the previous layers)
                 (
-                    lambda layer: is_resid_layer_after_0(layer),
+                    is_resid_layer_after_0,
                     set_err_projections,
                 ),
                 # set the mask for all layers, in preparation for the next layer to use it
                 (
-                    lambda name: name.endswith("hook_resid_pre"),
+                    is_resid_layer_before_11,
                     set_acts_and_mask,
                 ),
             ]
@@ -162,13 +171,13 @@ import numpy as np
 
 def get_limits_for_layer(layer_idx):
     if layer_idx <= 6:
-        return -1, 60, -15, 15
+        return -0.5, 15, -15, 15
     elif layer_idx == 7:
-        return -1, 70, -10, 15
+        return -0.5, 19, -10, 15
     elif layer_idx == 8:
-        return -1, 80, -12, 22
+        return -0.5, 20, -12, 22
     else:
-        return -1, 100, -15, 38
+        return -0.5, 30, -15, 38
 
 def create_scatterplots(sae_activations_per_layer, error_projections_per_layer):
     fig, axs = plt.subplots(3, 4, figsize=(20, 15), sharex=False, sharey=False)
