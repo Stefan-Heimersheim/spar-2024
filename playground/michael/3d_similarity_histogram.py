@@ -39,116 +39,32 @@ for threshold in tqdm(thresholds):
 
     data.append([(n_forward_pass_through >= n).sum() for n in high_sim_features] + [(n_forward_pass_through > max(high_sim_features)).sum()])
 
-# %%
 data = np.array(data)
 
 n_thresholds, n_high_sim_features = data.shape
-    
-xpos, ypos = np.meshgrid(range(n_thresholds), range(n_high_sim_features), indexing="ij")
-xpos = xpos.ravel()
-ypos = ypos.ravel()
-zpos = np.zeros_like(xpos)
-
-dx = dy = 1.0
-dz = data.ravel()
 
 
 # %%
-# Create the figure and 3D axis
-fig = plt.figure(figsize=(10, 8))
-ax = fig.add_subplot(111, projection='3d')
+from matplotlib.colors import LogNorm
+fig, ax = plt.subplots()
+im = ax.imshow(data, cmap='viridis', norm=LogNorm(vmin=1, vmax=data.max()))
 
-# Plot the bars
-ax.bar3d(xpos, ypos, zpos, dx, dy, dz, shade=True)
+# Add colorbar
+cbar = ax.figure.colorbar(im, ax=ax)
+cbar.ax.set_ylabel('Number of features (log scale)', rotation=-90, va="bottom")
 
-# Set labels and title
-ax.set_xlabel('Number of high-similarity downstream neighbors')
-ax.set_ylabel('High-similarity threshold')
-ax.set_zlabel('Number of features')
-ax.set_zscale('log')
-ax.set_title("3D Bar Plot")
-
-# Set tick labels
+# Set title and labels
+plt.title('Pearson correlation: High-similarity downstream neighbors')
+plt.xlabel('Number of high-similarity downstream neighbors')
 ax.set_xticks(range(n_high_sim_features))
-ax.set_xticklabels([str(n) for n in high_sim_features] + [f'> {max(high_sim_features)}'])
-ax.set_yticks(range(n_thresholds))
-ax.set_yticklabels([f'{t:.2f}' for t in thresholds])
-ax.tick_params(axis='y', rotation=45)
+ax.set_xticklabels([str(n) if n % 3 == 0 else '' for n in high_sim_features] + [f'> {max(high_sim_features)}'])
 
-# Adjust the viewing angle for better visibility
-ax.view_init(elev=20, azim=45)
+plt.ylabel('High-similarity threshold')
+y_ticks = range(len(data))
+y_labels = [f'{(y / len(data-1)):.1f}' if y % 4 == 0 else '' for y in y_ticks]  # Labels every 0.2
 
-fig.show()
+ax.set_yticks(y_ticks)
+ax.set_yticklabels(y_labels)
 
-
-# %%
-pass_through_connections = (similarities >= 0.9)
-n_forward_pass_through = pass_through_connections.sum(axis=-1).flatten()
-
-plt.plot([(n_forward_pass_through >= n).sum() for n in high_sim_features])
-plt.yscale('log')
-
-
-# %%
-data[:, -1].shape
-
-
-# %%
-# set up the figure and Axes
-fig = plt.figure(figsize=(8, 3))
-ax1 = fig.add_subplot(121, projection='3d')
-ax2 = fig.add_subplot(122, projection='3d')
-
-# fake data
-_x = np.arange(4)
-_y = np.arange(5)
-_xx, _yy = np.meshgrid(_x, _y)
-x, y = _xx.ravel(), _yy.ravel()
-
-top = x + y
-bottom = np.zeros_like(top)
-width = depth = 1
-
-ax1.bar3d(x, y, bottom, width, depth, top, shade=True)
-ax1.set_title('Shaded')
-
+# Show the plot
 plt.show()
-
-# %%
-top
-
-# %%
-fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(12, 12))
-
-# Make data.
-X = np.arange(data.shape[1])
-Y = thresholds
-X, Y = np.meshgrid(X, Y)
-Z = data
-
-# Plot the surface.
-surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm, linewidth=0, antialiased=True)
-
-
-ax.set_xlabel('Number of high-similarity downstream neighbors')
-ax.set_ylabel('High-similarity threshold')
-ax.set_zlabel('Number of features')
-ax.set_zscale('log')
-ax.set_title("High-similarity downstream neighbors for Pearson correlation")
-
-ax.set_xticks(range(n_high_sim_features))
-ax.set_xticklabels([str(n) for n in high_sim_features] + [f'> {max(high_sim_features)}'])
-# ax.set_yticks(range(n_thresholds))
-# ax.set_yticklabels([f'{t:.2f}' for t in thresholds])
-# Customize the z axis.
-# ax.set_zlim(-1.01, 1.01)
-# ax.zaxis.set_major_locator(LinearLocator(10))
-# # A StrMethodFormatter is used automatically
-# ax.zaxis.set_major_formatter('{x:.02f}')
-
-# Add a color bar which maps values to colors.
-fig.colorbar(surf, shrink=0.5, aspect=10)
-ax.view_init(20, 70, 0)
-
-plt.show()
-# %%
