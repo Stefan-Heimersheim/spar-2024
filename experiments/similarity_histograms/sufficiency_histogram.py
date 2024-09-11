@@ -7,14 +7,19 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..', 'src'))
 
-from similarity_helpers import load_correlation_data
+from similarity_helpers import load_similarity_data, get_filename
 
 
 # %%
 # Load raw (unclamped) files
-folder = '../../artefacts/similarity_measures/sufficiency'
-files = [f'{folder}/.unclamped/res_jb_sae_feature_similarity_sufficiency_{layer}_{layer+1}_1M_0.0.npz' for layer in range(11)]
-matrix = load_correlation_data(files)
+measure_name = "sufficiency_relative_activation"
+sae_name = 'res_jb_sae'
+n_layers = 12
+activation_threshold = 0.2
+
+folder = f'../../artefacts/similarity_measures/{measure_name}/.unclamped'
+matrix = load_similarity_data([f'{folder}/{get_filename(measure_name, "feature_similarity", activation_threshold, None, n_tokens="10M", first_layer=layer, sae_name=sae_name)}.npz' for layer in range(n_layers - 1)])
+
 
 
 # %%
@@ -29,11 +34,11 @@ zero_count = number_of_entries - nan_count - non_zero_count
 print(f'{number_of_entries=:,}\n{nan_count=:,}\n{zero_count=:,}\n{non_zero_count=:,}')
 
 
-# %% Create histogram of non-nans/non-zeros
+# %%
+# Create histogram of non-nans
 flat_matrix = matrix.flatten()
-nonzero_values = flat_matrix[flat_matrix > 0]
 
-plt.hist(nonzero_values, bins=100, log=True)
+plt.hist(flat_matrix, bins=200, log=True)
 plt.title('Sufficiency: Histogram of all SAE feature pairs')
 plt.xlabel('Sufficiency')
 plt.ylabel('Number of SAE feature pairs')

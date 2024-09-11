@@ -7,14 +7,19 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '../..', 'src'))
 
-from similarity_helpers import load_similarity_data
+from similarity_helpers import load_similarity_data, get_filename
 
 
 # %%
 # Load raw (unclamped) files
-folder = '../../artefacts/similarity_measures/mutual_information'
-files = [f'{folder}/.unclamped/res_jb_sae_feature_similarity_mutual_information_1M_0.0_{layer}.npz' for layer in range(11)]
-matrix = load_similarity_data(files)
+measure_name = "necessity_relative_activation"
+sae_name = 'res_jb_sae'
+n_layers = 12
+activation_threshold = 0.2
+
+folder = f'../../artefacts/similarity_measures/{measure_name}/.unclamped'
+matrix = load_similarity_data([f'{folder}/{get_filename(measure_name, "feature_similarity", activation_threshold, None, n_tokens="10M", first_layer=layer, sae_name=sae_name)}.npz' for layer in range(n_layers - 1)])
+
 
 
 # %%
@@ -24,14 +29,16 @@ nan_count = np.count_nonzero(np.isnan(matrix))
 non_zero_count = np.count_nonzero(matrix) - nan_count
 zero_count = number_of_entries - nan_count - non_zero_count
 
+
+# %%
 print(f'{number_of_entries=:,}\n{nan_count=:,}\n{zero_count=:,}\n{non_zero_count=:,}')
 
 
-# %% 
+# %%
 # Create histogram of non-nans
 flat_matrix = matrix.flatten()
 
 plt.hist(flat_matrix, bins=200, log=True)
-plt.title('Mutual information: Histogram of all SAE feature pairs')
-plt.xlabel('Mutual information')
+plt.title('Necessity: Histogram of all SAE feature pairs')
+plt.xlabel('Necessity')
 plt.ylabel('Number of SAE feature pairs')
