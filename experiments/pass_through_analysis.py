@@ -32,7 +32,7 @@ np.nan_to_num(similarities, copy=False)
 
 
 # %%
-pass_through_threshold = 0.9
+pass_through_threshold = 0.95
 
 forward_max = similarities.max(axis=2)
 forward_pass_through = (forward_max >= pass_through_threshold).sum(axis=1)
