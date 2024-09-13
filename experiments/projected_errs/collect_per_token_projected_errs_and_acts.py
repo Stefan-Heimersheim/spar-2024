@@ -36,7 +36,7 @@ num_layers = 12
 d_model = 768
 prepend_bos = True
 num_toks_per_row = 128
-num_rows = 128
+num_rows = 512
 batch_size = 32
 MAX_NUM_ACTIVATIONS_PER_LAYER = 500
 NECESSITY_DISAPPEAR_THRESHOLD = 0.4
@@ -179,34 +179,72 @@ def get_limits_for_layer(layer_idx):
     else:
         return -0.5, 30, -15, 38
 
-def create_scatterplots(sae_activations_per_layer, error_projections_per_layer):
-    fig, axs = plt.subplots(3, 4, figsize=(20, 15), sharex=False, sharey=False)
-    fig.suptitle('Activation Magnitude vs Error Projection for Different Layers')
+# %%
+import matplotlib as mpl
+mpl.rcParams.update({'font.size': mpl.rcParams['font.size'] + 4})
+# %%
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+def create_heatmaps(sae_activations_per_layer, error_projections_per_layer, layer_idxes):
+    fig, axes = plt.subplots(1, 5, figsize=(25, 5), gridspec_kw={'width_ratios': [1, 1, 1, 1, 0.05]})
+    # Create a list to store all heatmaps for normalization
+    all_heatmaps = []
+
+    for i, layer_idx in enumerate(layer_idxes):
+        activations = sae_activations_per_layer[layer_idx]
+        error_projections = error_projections_per_layer[layer_idx]
+        
+        # Calculate x-axis and y-axis ranges to cover 99% of the points
+        x_min, x_max = 0.3, 4.5
+        y_min, y_max = np.percentile(error_projections, [0.5, 99])
+        
+        # Create 2D histogram
+        heatmap, xedges, yedges = np.histogram2d(activations, error_projections, bins=100, 
+                                                 range=[[x_min, x_max], [y_min, y_max]])
+        all_heatmaps.append(heatmap)
+
+        axes[i].set_title(f'Layer {layer_idx}')
+        axes[i].set_xlabel('')  # Remove individual x-labels
+        if i == 0:
+            axes[i].set_ylabel('Error Projection')
+        else:
+            axes[i].set_ylabel('')  # Remove y-label for other subplots
+        
+        # Set x-axis ticks
+        x_ticks = np.linspace(x_min, x_max, 9)
+        axes[i].set_xticks(np.linspace(0, 100, 9))
+        axes[i].set_xticklabels([f'{x:.2f}' for x in x_ticks], rotation=45)
+
+        # Set y-axis ticks
+        y_ticks = np.linspace(y_max, y_min, 9)  # Reversed order
+        axes[i].set_yticks(np.linspace(0, 100, 9))
+        axes[i].set_yticklabels([f'{y:.2f}' for y in y_ticks])
+
+        # Invert y-axis
+        axes[i].invert_yaxis()
+
+    # Normalize colormap across all heatmaps
+    vmin = min(map(np.min, all_heatmaps))
+    vmax = max(map(np.max, all_heatmaps))
+
+    # Plot heatmaps with normalized colormap
+    for i, heatmap in enumerate(all_heatmaps):
+        im = axes[i].imshow(heatmap.T, cmap='YlOrRd', aspect='auto', norm=plt.Normalize(vmin=vmin, vmax=vmax))
+
+    # Create colorbar
+    cbar = fig.colorbar(im, cax=axes[-1])
+    cbar.set_label('Density', rotation=270, labelpad=15)
+
+    # Add a common x-label
+    fig.text(0.5, 0.01, 'Activation Magnitude', ha='center', va='center')
     
-    for layer_idx in range(11):
-        row = layer_idx // 4
-        col = layer_idx % 4
-        
-        activations = np.array(sae_activations_per_layer[layer_idx])
-        error_projections = np.array(error_projections_per_layer[layer_idx])
-        
-        # x_min, x_max, y_min, y_max = get_limits(activations, error_projections)
-        x_min, x_max, y_min, y_max = get_limits_for_layer(layer_idx)
-        
-        axs[row, col].scatter(activations, error_projections, alpha=0.5, s=1)
-        axs[row, col].set_xlim(x_min, x_max)
-        axs[row, col].set_ylim(y_min, y_max)
-        axs[row, col].set_title(f'Layer {layer_idx}')
-        
-        if col == 0:
-            axs[row, col].set_ylabel('Error Projection')
-        if row == 2:
-            axs[row, col].set_xlabel('Activation Magnitude')
-    
-    fig.delaxes(axs[2, 3])
     plt.tight_layout()
     plt.show()
 
-# Example usage
-create_scatterplots(sae_activations_per_layer, error_projections_per_layer)
+# Example usage:
+layer_idxes = [4, 6, 8, 10]
+create_heatmaps(sae_activations_per_layer, error_projections_per_layer, layer_idxes)
+
 # %%
