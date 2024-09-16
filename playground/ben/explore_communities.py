@@ -41,6 +41,10 @@ with open(necessity_filename, 'rb') as data:
     necessity = np.load(data)['arr_0']
 
 # %%
+cosine_similarity_filename = f"artefacts/similarity_measures/cosine_similarity/res_jb_sae_feature_similarity_cosine_similarity_0.4.npz"
+with open(cosine_similarity_filename, 'rb') as data:
+    cosine_similarity = np.load(data)['arr_0']
+# %%
 feature_pairs = [
     ((5, 16673), (6, 6645)),
     ((5, 16673), (6, 2653)),
