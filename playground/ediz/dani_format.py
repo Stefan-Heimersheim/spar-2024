@@ -136,7 +136,7 @@ def assign_community_labels(graph: nx.Graph, partition: list[set]) -> nx.Graph:
 
 def save_not_masked():
     graph_to_save = "graphs/sufficiency/res_jb_sae_feature_similarity_sufficiency_10M_relative_activation_0.2_threshold_0.1.pkl"
-    partition_path = "partitions/sufficiency_leiden_modularity_threshold_0.1_plotly.pkl"
+    partition_path = "partitions/sufficiency_louvain_threshold_0.1_plotly.pkl"
     partition = read_partition_from_file(partition_path)
     graph = load_graph(graph_to_save)
 
@@ -148,7 +148,7 @@ def save_not_masked():
     print(len(partition))
 
     root_dir = "dani_jsons"
-    graphs_dir = "sufficiency_leiden_modularity_threshold_0.1"
+    graphs_dir = "sufficiency_louvain_threshold_0.1"
     output_dir = f"{root_dir}/{graphs_dir}"
     os.makedirs(output_dir, exist_ok=True)
     for i,sg in enumerate(subgraphs):
@@ -181,5 +181,5 @@ def save_masked():
         save_graph_to_json(graph, f"{output_dir}/{graphs_dir}_{i}.json")
 
 if __name__ == "__main__":
-    save_masked()
+    #save_masked()
     save_not_masked()
