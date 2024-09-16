@@ -79,8 +79,8 @@ if __name__ == "__main__":
     images_directory = "community_images"  # Replace with your actual base directory
     partitions_dir = "partitions"
 
-    selection_root = "selection"  # Root directory for storing the selected files
-    nodes_required = [4, 5, 6, 7, 8]  # Replace with the number of nodes required in a partition
+    selection_root = "selection_10_16"  # Root directory for storing the selected files
+    nodes_required = [i for i in range(10,17)]  # Replace with the number of nodes required in a partition
     max_files_to_copy = 20  # Replace with the maximum number of files to copy
 
     process_directories(images_directory, partitions_dir, selection_root, nodes_required, max_files_to_copy)
