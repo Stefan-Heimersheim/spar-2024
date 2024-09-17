@@ -43,7 +43,9 @@ np.savez_compressed(f'{artefacts_folder}/max_activation_analysis/res_jb_sae_max_
 
 # %%
 # [OPTIONAL] Load max activations from file
-# max_activations = np.load('{artefacts_folder}/max_activation_analysis/res_jb_sae_max_activations_{number_of_token_desc}.npz')['arr_0']
+number_of_token_desc = '17.5M'
+artefacts_folder = '../artefacts'
+max_activations = np.load(f'{artefacts_folder}/max_activation_analysis/res_jb_sae_max_activations_{number_of_token_desc}.npz')['arr_0']
 
 
 # %%
@@ -57,12 +59,12 @@ bins = np.linspace(min, max, 1000)
 hist, bins, _ = ax.hist(data, bins=bins)
 
 ax.set_yscale('log')
-ax.set_xlabel(f'Maximum activation over {number_of_token_desc} tokens (log scale)')
-ax.set_ylabel('Number of SAE features across all layers')
+ax.set_xlabel(f'Maximum activation value')
+ax.set_ylabel('Number of SAE features across all layers (log scale)')
 ax.set_title('Histogram of maximum activation per SAE feature')
 ax.grid(True, which="both", ls="-", alpha=0.2)
 
 plt.tight_layout()
 plt.show()
 
-plt.savefig(f'{artefacts_folder}/max_activation_analysis/res_jb_sae_max_activations_{number_of_token_desc}.png', dpi=300, format='png', bbox_inches='tight')
+# plt.savefig(f'{artefacts_folder}/max_activation_analysis/res_jb_sae_max_activations_{number_of_token_desc}.png', dpi=300, format='png', bbox_inches='tight')
