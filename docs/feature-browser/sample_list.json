@@ -1,6 +1,5 @@
 {
     "samples": [
-        "abstract.json",
         "ioi.json",
         "jaccard_leiden_modularity_threshold_0.1_masked_single_0.json",
         "jaccard_leiden_modularity_threshold_0.1_masked_single_12.json",
