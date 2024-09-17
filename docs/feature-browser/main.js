@@ -17,84 +17,23 @@ function initializeGraph() {
 }
 
 function loadSampleList() {
-    // Hardcoded list of sample files
-    const sampleFiles = [
-        'abstract.json',
-        'ediz_test.json',
-        'how_are_you.json',
-        'ioi.json',
-        'jaccard_leiden_modularity_threshold_0.1_masked_single_0.json',
-        'jaccard_leiden_modularity_threshold_0.1_masked_single_12.json',
-        'jaccard_leiden_modularity_threshold_0.1_masked_single_23.json',
-        'jaccard_leiden_modularity_threshold_0.1_masked_single_32.json',
-        'jaccard_leiden_modularity_threshold_0.1_masked_single_54.json',
-        'jaccard_leiden_modularity_threshold_0.1_size_11_657.json',
-        'jaccard_leiden_modularity_threshold_0.1_size_18_201.json',
-        'jaccard_leiden_modularity_threshold_0.1_size_6_1221.json',
-        'jaccard_leiden_modularity_threshold_0.1_size_6_1344.json',
-        'jaccard_leiden_modularity_threshold_0.1_size_7_1188.json',
-        'jaccard_leiden_modularity_threshold_0.1_size_9_787.json',
-        'klara_and_the_sun.json',
-        'mutual_information_leiden_modularity_threshold_0.1_masked_single_10.json',
-        'mutual_information_leiden_modularity_threshold_0.1_masked_single_15.json',
-        'mutual_information_leiden_modularity_threshold_0.1_masked_single_21.json',
-        'mutual_information_leiden_modularity_threshold_0.1_masked_single_25.json',
-        'mutual_information_leiden_modularity_threshold_0.1_masked_single_4.json',
-        'mutual_information_leiden_modularity_threshold_0.1_size_12_3.json',
-        'mutual_information_leiden_modularity_threshold_0.1_size_5_11.json',
-        'mutual_information_leiden_modularity_threshold_0.1_size_5_9.json',
-        'mutual_information_leiden_modularity_threshold_0.1_size_6_6.json',
-        'mutual_information_leiden_modularity_threshold_0.1_size_9_5.json',
-        'necessity_leiden_modularity_threshold_0.1_masked_single_0.json',
-        'necessity_leiden_modularity_threshold_0.1_masked_single_13.json',
-        'necessity_leiden_modularity_threshold_0.1_masked_single_20.json',
-        'necessity_leiden_modularity_threshold_0.1_masked_single_25.json',
-        'necessity_leiden_modularity_threshold_0.1_masked_single_8.json',
-        'necessity_leiden_modularity_threshold_0.1_size_10_60.json',
-        'necessity_leiden_modularity_threshold_0.1_size_13_50.json',
-        'necessity_leiden_modularity_threshold_0.1_size_16_42.json',
-        'necessity_leiden_modularity_threshold_0.1_size_5_76.json',
-        'necessity_leiden_modularity_threshold_0.1_size_8_64.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_single_15.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_single_2.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_single_24.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_single_31.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_single_8.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_size_5_1419.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_size_5_1427.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_size_5_1436.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_size_5_1441.json',
-        'pearson_leiden_modularity_threshold_0.1_masked_size_5_1450.json',
-        'pearson_leiden_modularity_threshold_0.1_size_12_94.json',
-        'pearson_leiden_modularity_threshold_0.1_size_6_213.json',
-        'pearson_leiden_modularity_threshold_0.1_size_7_205.json',
-        'pearson_leiden_modularity_threshold_0.1_size_8_196.json',
-        'pearson_leiden_modularity_threshold_0.1_size_9_192.json',
-        'sufficiency_leiden_modularity_threshold_0.1_masked_single_11.json',
-        'sufficiency_leiden_modularity_threshold_0.1_masked_single_18.json',
-        'sufficiency_leiden_modularity_threshold_0.1_masked_single_2.json',
-        'sufficiency_leiden_modularity_threshold_0.1_masked_single_25.json',
-        'sufficiency_leiden_modularity_threshold_0.1_masked_single_35.json',
-        'sufficiency_leiden_modularity_threshold_0.1_size_11_72.json',
-        'sufficiency_leiden_modularity_threshold_0.1_size_13_65.json',
-        'sufficiency_leiden_modularity_threshold_0.1_size_14_61.json',
-        'sufficiency_leiden_modularity_threshold_0.1_size_5_90.json',
-        'sufficiency_leiden_modularity_threshold_0.1_size_9_79.json',
-        // Add more sample files as needed
-    ];
-    
-
     const sampleSelect = document.getElementById('sample-select');
-    sampleFiles.forEach(file => {
-        const option = document.createElement('option');
-        option.value = file;
-        option.textContent = file.replace('.json', '');
-        sampleSelect.appendChild(option);
-    });
-    sampleSelect.addEventListener('change', loadSelectedSample);
-
-    return Promise.resolve(); // Return a resolved promise to maintain the chain
+    
+    return fetch('./sample_list.json')
+        .then(response => response.json())
+        .then(data => {
+            const sampleFiles = data.samples; // Load the list of sample files from the JSON
+            sampleFiles.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file;
+                option.textContent = file.replace('.json', '');
+                sampleSelect.appendChild(option);
+            });
+            sampleSelect.addEventListener('change', loadSelectedSample);
+        })
+        .catch(error => console.error("Error loading sample list:", error));
 }
+
 
 function loadSelectedSample() {
     const sampleSelect = document.getElementById('sample-select');
