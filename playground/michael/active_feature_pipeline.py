@@ -26,12 +26,12 @@ artefacts_folder = '../../artefacts'
 # %%
 # Init model, SAEs and similarity matrix
 sae_name = 'res_jb_sae'
-measure_name = 'pearson_correlation'
-measure_display_name = 'pearson correlation'
+measure_name = 'cosine_similarity'
+measure_display_name = '(decoder weight vector) cosine similarity'
 activation_threshold_1 = None
-clamping_threshold = 0.1
-activation_threshold_2 = 0.5
-n_tokens = '10M'
+clamping_threshold = 0.4
+activation_threshold_2 = 0.0
+n_tokens = None
 
 model, saes = load_model_and_saes(model_name='gpt2-small', sae_name='gpt2-small-res-jb', hook_name='hook_resid_pre', device=device)
 similarities = load_similarity_data([f'{artefacts_folder}/similarity_measures/{measure_name}/{get_filename(measure_name, "feature_similarity", activation_threshold_1, clamping_threshold, n_tokens)}.npz'])
@@ -49,6 +49,7 @@ graph = get_active_feature_graph_for_prompt(model, saes, prompt, similarities, a
 graph.graph['description'] = f'This graph\'s nodes are the SAE features that are active (i.e., whose activation is {activation_threshold_2 or 0} or higher) on the final token of the prompt. Its edges represent the similarity values of the {measure_name} measure, computed over {n_tokens} tokens with activation threshold {activation_threshold_1} (absolute values below {clamping_threshold} are clamped to zero). The explanations of the features are created by GPT-3.5-turbo and downloaded from Neuronpedia.'
 graph.graph['prompt'] = prompt
 graph.graph['clamping_threshold'] = clamping_threshold
+graph.graph['measure_name'] = measure_name
 
 # Save graph to file
 save_graph_to_json(graph, f'{artefacts_folder}/active_feature_graphs/{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M")}_{sae_name}_active_feature_graph_{measure_name}_.json')
