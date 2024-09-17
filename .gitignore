@@ -9,3 +9,5 @@ plots/
 settings.json
 .cache/
 pile_subset.json
+images/
+partitions/

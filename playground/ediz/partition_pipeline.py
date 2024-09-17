@@ -23,7 +23,7 @@ def run():
 
     # Optional arguments with defaults
     parser.add_argument("--mask_file", default=None, help="Path to the mask file. Optional.")
-    parser.add_argument("--partition_method", default="louvain", choices=["louvain", "leiden"], help="Partition method to use. Default is 'louvain'.")
+    parser.add_argument("--partition_method", default="louvain", choices=["louvain", "leiden","connected_components"], help="Partition method to use. Default is 'louvain'.")
     parser.add_argument("--resolution_parameter", type=float, default=None, help="Resolution parameter for Leiden. Optional.")
     parser.add_argument("--quality_function", default="modularity", choices=quality_function_map.keys(), help="Quality function to use in Leiden partition. Default is ModularityVertexPartition.")
     parser.add_argument("--weighted_partition", type=bool, default=True, help="Use weighted partitioning. Default is True.")

@@ -52,7 +52,7 @@ import numpy as np
 import networkx as nx
 from networkx.algorithms.community import louvain_communities
 import matplotlib.pyplot as plt
-import random
+import matplotlib.colors as mcolors
 import gc
 import os
 import pickle
@@ -60,6 +60,68 @@ import leidenalg as la
 import igraph as ig
 import einops
 import plotly.graph_objects as go
+
+def plot_colored_partition_graph(G: nx.Graph, partition: list[set], filename: str = "colored_partition_graph.png") -> None:
+    """
+    Plots the entire graph with nodes colored according to their partition. Nodes are arranged by their 'layer' attribute,
+    and edges are drawn based on the partition.
+
+    Args:
+        G: The graph to plot.
+        partition: The partitioning of the graph, where each set represents a community.
+        filename: The filename where the plot image will be saved.
+    """
+    try:
+        # Extract layers and features from the graph's nodes
+        layer_attr = nx.get_node_attributes(G, 'layer')
+        feature_attr = nx.get_node_attributes(G, 'feature')
+
+        # Determine the number of unique layers and maximum number of features within any layer
+        layers_in_graph = sorted(set(layer_attr.values()))
+        num_layers = len(layers_in_graph)
+        
+        features_by_layer = {layer: set() for layer in layers_in_graph}
+        for node, layer in layer_attr.items():
+            features_by_layer[layer].add(feature_attr[node])
+        
+        num_features = max(len(features) for features in features_by_layer.values())
+
+        # Set up positions for the nodes based on their layer and feature
+        pos = {}
+        layer_height = 1
+        layer_spacing = 10
+        
+        for i, layer in enumerate(layers_in_graph):
+            for feature in features_by_layer[layer]:
+                pos[(layer, feature)] = (i * layer_spacing, feature * layer_height)
+
+        # Create a color map for the partitions
+        colors = list(mcolors.TABLEAU_COLORS.values())
+        color_map = {}
+        for idx, part in enumerate(partition):
+            color = colors[idx % len(colors)]
+            for node in part:
+                color_map[node] = color
+
+        # Set up the figure size for plotting
+        plt.figure(figsize=(int(num_layers * 2.5), int(num_features * .25) + 1))
+
+        # Draw the nodes with colors based on their partition
+        node_colors = [color_map.get(node, 'grey') for node in G.nodes()]
+        nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=100)
+
+        # Draw the edges
+        nx.draw_networkx_edges(G, pos, edge_color='lightgrey', alpha=0.5, arrows=False)
+
+        # Add labels for the layers that are actually present
+        for i, layer in enumerate(layers_in_graph):
+            plt.text(i * layer_spacing, (num_features - 1) * layer_height + 1, f"Layer {layer}", 
+                     horizontalalignment='center', verticalalignment='bottom', fontsize=12, color='black')
+
+        plt.title("Colored Partitioned Graph Visualization")
+        plt.savefig(filename, dpi=300, bbox_inches='tight')  # Save the figure to a file
+    finally:
+        plt.close()  # Ensure that the figure is closed to free up memory
 
 def add_explanations_to_graph(graph: nx.DiGraph) -> nx.DiGraph:
     # Load explanations
@@ -107,27 +169,6 @@ def save_explanation_graph(graph: nx.DiGraph, file_path: str) -> None:
                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False))
                     )
     fig.write_html(file_path)
-
-def apply_mask_with_einops(mask: np.ndarray, data: np.ndarray, i: int) -> np.ndarray:
-    """
-    Optimized function using einops to broadcast the mask from (12, 24k) to (12, 24k, 24k).
-    """
-    # Ensure i is within bounds
-    if i < 0 or i >= mask.shape[0]:
-        raise IndexError("Index i is out of bounds for the mask array.")
-    
-    # Get the mask slice for the given index i
-    current_mask = mask[i]  # shape = (12, 24k)
-
-    # Use einops to repeat the mask across a new dimension
-    expanded_mask_1 = einops.repeat(current_mask, 'x y -> x y z', z=data.shape[2])
-    expanded_mask_2 = einops.repeat(current_mask, 'x y -> x z y', z=data.shape[2])
-
-    # Apply the mask to the data
-    data[~expanded_mask_1] = 0
-    data[~expanded_mask_2] = 0
-
-    return data
 
 def save_graph(graph: nx.Graph, graph_file: str) -> None:
     """
@@ -177,7 +218,7 @@ def remove_isolated_nodes(G):
     
     return G_copy
 
-def load_graph_from_npz(npz_file: str, threshold: float = 0.0, mask_file: str = None, mask_index:int = 0) -> nx.DiGraph:
+def load_graph_from_npz(npz_file: str, threshold: float = 0.0, mask_file: str = None, mask_index:int = 0, remove_disconnected_nodes:bool=False) -> nx.DiGraph:
     """
     Loads a graph from a .npz file containing a 3D numpy array.
     The array represents edge weights between nodes across layers.
@@ -206,6 +247,7 @@ def load_graph_from_npz(npz_file: str, threshold: float = 0.0, mask_file: str = 
             print(f"Loading: {mask_file}")
             mask = np.load(mask_file)['arr_0'][mask_index]
             print(f"Finished loading {mask_file}!")
+            print(f"There should be {np.sum(mask)} active nodes")
             # array = apply_mask_with_einops(mask,array,mask_index)
 
     num_layer_pairs, d_sae, _ = array.shape
@@ -230,14 +272,16 @@ def load_graph_from_npz(npz_file: str, threshold: float = 0.0, mask_file: str = 
             for k in range(d_sae):
                 weight = array[i, j, k]
                 if mask is None:
-                    skip = False
+                    keep = True
                 else:
-                    skip = mask[i][j] and mask[i+1][k]
-                if weight > threshold and skip == False:
+                    keep = mask[i][j] and mask[i+1][k]
+                if weight > threshold and keep:
                     G.add_edge((i, j), (i + 1, k), weight=weight)
 
     # Remove edgeless nodes:
-    G = remove_isolated_nodes(G)
+    if remove_disconnected_nodes:
+        G = remove_isolated_nodes(G)
+
     add_explanations_to_graph(G)
 
     # Free memory by deleting the array and triggering garbage collection
@@ -246,7 +290,7 @@ def load_graph_from_npz(npz_file: str, threshold: float = 0.0, mask_file: str = 
 
     return G
 
-def perform_louvain_partition(graph: nx.Graph) -> list[set]:
+def perform_louvain_partition(graph: nx.Graph, weighted:bool=False) -> list[set]:
     """
     Performs Louvain community detection on the graph.
 
@@ -256,31 +300,13 @@ def perform_louvain_partition(graph: nx.Graph) -> list[set]:
     Returns:
         A list of sets, where each set contains nodes belonging to the same partition.
     """
-    return louvain_communities(graph, seed=42)
+    if weighted:
+        return louvain_communities(graph, seed=42)
+    else:
+        return louvain_communities(graph, seed=42, weight=None)
 
-def extract_partition_subgraph(partition: list[set], partition_index: int, graph: nx.Graph) -> nx.Graph:
-    """
-    Extracts a subgraph containing only the nodes in the specified partition index.
-
-    Args:
-        partition: The partition returned by the Leiden algorithm (a list of sets of nodes).
-        partition_index: The index of the partition to extract.
-        graph: The original NetworkX graph.
-
-    Returns:
-        A NetworkX subgraph containing only the nodes in the specified partition.
-    """
-    # Check if the partition index is valid
-    if partition_index < 0 or partition_index >= len(partition):
-        raise ValueError("Invalid partition index.")
-
-    # Get the nodes in the specified partition
-    partition_nodes = partition[partition_index]
-
-    # Create a subgraph containing only these nodes
-    subgraph = graph.subgraph(partition_nodes).copy()
-
-    return subgraph
+def perform_connected_components_partition(graph: nx.Graph) -> list[set]:
+    return list(nx.weakly_connected_components(graph))
 
 def perform_leiden_partition(graph: nx.Graph, quality_function=la.CPMVertexPartition, resolution_parameter:float=None, weighted:bool=True) -> list[set]:
     """
@@ -315,14 +341,16 @@ def perform_leiden_partition(graph: nx.Graph, quality_function=la.CPMVertexParti
         weights = None  # No weights, will proceed without them
 
     # Perform Leiden community detection using the specified quality function and weights
-    partition = la.find_partition(ig_graph, quality_function, weights=weights, seed=42, resolution_parameter=resolution_parameter)
+    if quality_function == la.CPMVertexPartition:
+        partition = la.find_partition(ig_graph, quality_function, weights=weights, seed=42, resolution_parameter=resolution_parameter)
+    else:
+        partition = la.find_partition(ig_graph, quality_function, weights=weights, seed=42)
 
 
     # Convert the result back to a list of sets of nodes using the reverse mapping
     communities = [set(reverse_mapping[node] for node in community) for community in partition]
 
     return communities
-
 
 def plot_partition_histogram(partition: list[set], output_file: str = 'partition_histogram.png', log_y: bool = False) -> None:
     """
@@ -518,6 +546,18 @@ def save_partition_to_file(partition: list[set], filename: str) -> None:
     
     print(f"Partition saved to {filename}")
 
+def mask_graph(graph: nx.DiGraph, mask_file: str, mask_index: int = 0) -> nx.DiGraph:
+    mask = np.load(mask_file)['arr_0'][mask_index]
+    graph_copy = graph.copy()
+    nodes_to_remove = []
+    
+    for node_id, node_data in graph_copy.nodes(data=True):
+        if mask[node_data.get('layer')][node_data.get('feature')] == False:
+            nodes_to_remove.append(node_id)
+    
+    graph_copy.remove_nodes_from(nodes_to_remove)
+    return graph_copy
+
 def read_partition_from_file(filename: str) -> list[set]:
     """
     Reads a partition from a file using pickle. The partition is loaded as a Python object.
@@ -534,7 +574,7 @@ def read_partition_from_file(filename: str) -> list[set]:
     return partition
 
 
-def main(npz_file: str, graph_file: str, file_name:str, mask_file:str = None, partition_method:str="louvain", resolution_parameter:float=None, quality_function=la.ModularityVertexPartition, weighted_partition:bool=True, threshold: float = 0.0) -> None:
+def main(npz_file: str, graph_file: str, file_name:str, mask_file:str = None, partition_method:str="louvain", resolution_parameter:float=None, quality_function=la.ModularityVertexPartition, weighted_partition:bool=True, threshold: float = 0.0, mask_first:bool=False) -> None:
     """
     Main function to load the graph, perform Louvain partitioning, and visualize the results.
 
@@ -544,7 +584,7 @@ def main(npz_file: str, graph_file: str, file_name:str, mask_file:str = None, pa
         threshold: Minimum edge weight to include an edge in the graph.
     """
     # Check if the graph file exists
-    if False and os.path.exists(graph_file):
+    if os.path.exists(graph_file):
         print(f"Loading graph from {graph_file}...")
         graph = load_graph(graph_file)
         print(f"Graph loaded: Number of nodes : {graph.number_of_nodes()}")
@@ -554,9 +594,15 @@ def main(npz_file: str, graph_file: str, file_name:str, mask_file:str = None, pa
         # save_graph(graph, graph_file)
     else:
         print(f"Graph file not found. Creating graph from {npz_file}...")
-        graph = load_graph_from_npz(npz_file, threshold, mask_file=mask_file)
+        if mask_first:
+            graph = load_graph_from_npz(npz_file, threshold, mask_file=mask_file,remove_disconnected_nodes=False)
+        else:
+            graph = load_graph_from_npz(npz_file, threshold ,remove_disconnected_nodes=False)
         save_graph(graph, graph_file)
         print(f"Graph saved to {graph_file}.")
+
+
+    print(f"Graph has {graph.number_of_nodes()} nodes and {graph.number_of_edges()} edges")
 
     if partition_method == "leiden":
         print("Performing Leiden partition")
@@ -568,12 +614,33 @@ def main(npz_file: str, graph_file: str, file_name:str, mask_file:str = None, pa
 
     elif partition_method == "louvain":
         print("Performing louvain partition")
-        partition = perform_louvain_partition(graph)
+        partition = perform_louvain_partition(graph,weighted=weighted_partition)
+    
+    elif partition_method == "connected_components":
+        partition = perform_connected_components_partition(graph)
+    else:
+        print(f"Error: no partition method : {partition_method}")
+        return
 
+    print(f"Number of communities total : {len(partition)}")
     save_partition_to_file(partition,filename=f"partitions/{file_name}.pkl")
+
+   
+
 
     #partition = read_partition_from_file(filename="partitions/pearson_leiden_cpm_resolution_0.01.pkl")
     print("Finished loading/making partition")
+
+    
+    if not mask_first and mask_file is not None:
+        graph = mask_graph(graph, mask_file, mask_index=0)
+
+    if not os.path.exists(f"community_images/{file_name}"):
+        os.makedirs(f"community_images/{file_name}")
+
+    if mask_file is not None and os.path.exists(mask_file):
+        print("Plotting coloured graph")
+        plot_colored_partition_graph(graph,partition,f"community_images/{file_name}/coloured.png")
 
     #print("Plotting partition histogram")
     plot_partition_histogram(partition, output_file=f"histograms/{file_name}.png")

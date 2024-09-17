@@ -15,7 +15,7 @@ source ../../.venv/bin/activate
 npz_file="../../artefacts/similarity_measures/pearson_correlation/res_jb_sae_feature_similarity_pearson_correlation_10M_0.1.npz"
 
 # Required: Path to the file where the graph will be saved/loaded
-graph_file="graphs/res_jb_sae_feature_similarity_pearson_10M_relative_activation_0.2_threshold_0.99.pkl"
+graph_file="graphs/res_jb_sae_feature_similarity_pearson_correlation_10M_threshold_0.99.pkl"
 
 # Required: File name for output files
 file_name="pearson_louvain_threshold_0.99_plotly"

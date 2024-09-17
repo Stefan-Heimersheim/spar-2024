@@ -33,7 +33,7 @@ partition_method="louvain"
 weighted_partition=false
 
 # Optional: Path to the mask file
-# mask_file="path/to/mask_file.npz"
+# mask_file="../../artefacts/active_features/res_jb_sae_active_features_rel_0.9_100_any.npz"
 
 # Optional: Resolution parameter for Leiden algorithm
 # resolution_parameter=0.1

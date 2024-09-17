@@ -36,7 +36,7 @@ num_layers = 12
 d_model = 768
 prepend_bos = True
 num_toks_per_row = 128
-num_rows = 128
+num_rows = 512
 batch_size = 32
 MAX_NUM_ACTIVATIONS_PER_LAYER = 500
 NECESSITY_DISAPPEAR_THRESHOLD = 0.4
@@ -178,35 +178,57 @@ def get_limits_for_layer(layer_idx):
         return -0.5, 20, -12, 22
     else:
         return -0.5, 30, -15, 38
+# %%
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
-def create_scatterplots(sae_activations_per_layer, error_projections_per_layer):
-    fig, axs = plt.subplots(3, 4, figsize=(20, 15), sharex=False, sharey=False)
-    fig.suptitle('Activation Magnitude vs Error Projection for Different Layers')
+def create_heatmaps(sae_activations_per_layer, error_projections_per_layer, layer_idxes):
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
     
-    for layer_idx in range(11):
-        row = layer_idx // 4
-        col = layer_idx % 4
+    for i, layer_idx in enumerate(layer_idxes):
+        activations = sae_activations_per_layer[layer_idx]
+        error_projections = error_projections_per_layer[layer_idx]
         
-        activations = np.array(sae_activations_per_layer[layer_idx])
-        error_projections = np.array(error_projections_per_layer[layer_idx])
+        x_min, x_max = 0.3, 3.3
+        y_min, y_max = np.percentile(error_projections, [0.5, 99])
         
-        # x_min, x_max, y_min, y_max = get_limits(activations, error_projections)
-        x_min, x_max, y_min, y_max = get_limits_for_layer(layer_idx)
+        heatmap, xedges, yedges = np.histogram2d(activations, error_projections, bins=100, 
+                                                 range=[[x_min, x_max], [y_min, y_max]])
+
+        axes[i].set_title(f'Layer {layer_idx}')
+        if i == 0:
+            axes[i].set_ylabel('Error Projection')
         
-        axs[row, col].scatter(activations, error_projections, alpha=0.5, s=1)
-        axs[row, col].set_xlim(x_min, x_max)
-        axs[row, col].set_ylim(y_min, y_max)
-        axs[row, col].set_title(f'Layer {layer_idx}')
+        x_ticks = np.linspace(x_min, x_max, 9)
+        axes[i].set_xticks(np.linspace(0, 100, 9))
+        axes[i].set_xticklabels([f'{x:.2f}' for x in x_ticks], rotation=45)
+
+        y_ticks = np.linspace(y_max, y_min, 9)
+        axes[i].set_yticks(np.linspace(0, 100, 9))
+        axes[i].set_yticklabels([f'{y:.2f}' for y in y_ticks])
+
+        axes[i].invert_yaxis()
+
+        im = axes[i].imshow(heatmap.T, cmap='YlOrRd', aspect='auto')
+
+        divider = make_axes_locatable(axes[i])
+        cax = divider.append_axes("right", size="5%", pad=0.1)
+        cbar = fig.colorbar(im, cax=cax)
         
-        if col == 0:
-            axs[row, col].set_ylabel('Error Projection')
-        if row == 2:
-            axs[row, col].set_xlabel('Activation Magnitude')
-    
-    fig.delaxes(axs[2, 3])
+        # Remove individual colorbar labels
+        cbar.set_label('')
+
+    # Add a single 'Density' label for all colorbars
+    fig.text(0.98, 0.5, 'Density', va='center', rotation=270)
+    fig.text(0.5, 0.01, 'Activation Magnitude', ha='center', va='center')
     plt.tight_layout()
+    # Adjust the right margin to accommodate the 'Density' label
+    plt.subplots_adjust(right=0.95)
     plt.show()
 
-# Example usage
-create_scatterplots(sae_activations_per_layer, error_projections_per_layer)
+# Example usage:
+layer_idxes = [4, 8]
+create_heatmaps(sae_activations_per_layer, error_projections_per_layer, layer_idxes)
 # %%
