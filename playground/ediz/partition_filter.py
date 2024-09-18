@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import List, Set
 import networkx as nx
 
-from ediz_6 import read_partition_from_file
+from partition_utils import read_partition_from_file
 
 def copy_partition_files(partitions: List[Set[int]], source_dir: str, dest_dir: str, n: int, max_files: int) -> None:
     """

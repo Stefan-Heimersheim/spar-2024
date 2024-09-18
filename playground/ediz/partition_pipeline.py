@@ -1,5 +1,5 @@
 import argparse
-from ediz_6 import main  # Replace 'your_module' with the actual module name where main is defined
+from partition_utils import main  # Replace 'your_module' with the actual module name where main is defined
 import leidenalg as la  # Ensure this is imported if 'la.CPMVertexPartition' is used
 
 # Create a lookup dictionary for quality functions

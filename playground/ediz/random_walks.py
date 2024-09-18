@@ -2,7 +2,7 @@ import networkx as nx
 import random
 from collections import Counter
 from multiprocessing import Pool, cpu_count, Value
-from ediz_6 import load_graph
+from partition_utils import load_graph
 import os
 from tqdm import tqdm
 import pickle

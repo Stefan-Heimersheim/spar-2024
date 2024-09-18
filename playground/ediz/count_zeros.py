@@ -43,7 +43,7 @@ if __name__ == "__main__":
     array_map = convert_array_to_map(array, threshold)
     
     # Save the map to a JSON file
-    json_file_path = 'ediz_json/pearson_10M_0.1.json'
+    json_file_path = 'graph_jsons/pearson_10M_0.1.json'
     save_to_json(array_map, json_file_path)
     
     print(f"Data saved to {json_file_path}")
