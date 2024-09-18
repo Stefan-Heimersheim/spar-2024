@@ -9,7 +9,7 @@ import os
 import pickle
 import leidenalg as la
 import igraph as ig
-from partition_utils import *
+from src.partition_utils import *
 
 # Path to the partition file
 partition_file = 'partitions/pearson_louvain.pkl'  # Replace with your actual file path

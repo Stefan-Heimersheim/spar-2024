@@ -1,4 +1,4 @@
-from partition_utils import read_partition_from_file, plot_partition_histogram
+from src.partition_utils import read_partition_from_file, plot_partition_histogram
 
 measures = ["jaccard_similarity", "mutual_information", "necessity","pearson","sufficiency"]
 method = "louvain"

@@ -6,7 +6,7 @@ import numpy as np
 import json
 import os
 
-from partition_utils import load_graph, read_partition_from_file
+from src.partition_utils import load_graph, read_partition_from_file
 
 def mask_graph(graph: nx.DiGraph, mask_file:str, mask_index:int=0) -> nx.DiGraph:
     mask = np.load(mask_file)['arr_0'][mask_index]
