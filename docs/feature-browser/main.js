@@ -57,12 +57,12 @@ function loadSelectedSample() {
             console.log("Graph nodes:", graph.nodes.length, "Graph links:", graph.links.length);
 
             // Update prompt
-            const promptElement = document.getElementById('prompt-text');
-            if (data.graph && data.graph.prompt) {
-                promptElement.textContent = data.graph.prompt;
-            } else {
-                promptElement.textContent = "No prompt available.";
-            }
+            // const promptElement = document.getElementById('prompt-text');
+            // if (data.graph && data.graph.prompt) {
+            //     promptElement.textContent = data.graph.prompt;
+            // } else {
+            //     promptElement.textContent = "No prompt available.";
+            // }
 
             // Add graph description to the info panel
             const graphDescriptionElement = document.getElementById('graph-description');
