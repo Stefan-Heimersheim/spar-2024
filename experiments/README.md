@@ -13,10 +13,10 @@ Figure 3 is produced by running `experiments/pass_through_analysis.py`.
 Table 2 is produced by running `experiments/logic_gates.py`.
 
 #### 3.3 Did features disappear, or did they lack representation in the next layer's SAE?
-TODO: Figure 4
+In Figure 4, the right charts were created by running `experiments/projected_errs/collect_per_token_projected_errs_and_acts.py`
 
 #### 3.4 Community-detection finds semantically meaningful subgraphs
-TODO: Figure 5
+Figure 5 was created by going through all the communities in the [feature browser](https://stefanhex.com/spar-2024/feature-browser/)
 
 ### Appendix
 #### B Distribution of maximum activation values per feature
@@ -39,6 +39,10 @@ Tables 3 to 6 are produced running `experiments/explanations_for_different_simil
 #### G Pass-through features at different thresholds
 TODO: Figure 12 is produced by running 
 
+#### I Relationship between ablation effect and similarity measure
+Figure 13 was produced by running `experiments/ablations/sample_pairs.py` to collect indexes of features in adjacent layer pairs
+Followed by running `experiments/ablations/ablate_sampled_pairs.py` to ablate the "previous layer" feature of each pair
+and then finally through `experiments/ablations/analyze_ablations.py`
 
 ## Unordered list
 - [DONE] Sankey diagram: 
