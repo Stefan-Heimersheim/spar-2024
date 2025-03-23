@@ -1,4 +1,4 @@
-_If you're looking for the visualization web page, click [here]([url](https://stefanhex.com/spar-2024/feature-browser/))_
+_If you're looking for the visualization web page, click [here](https://stefanhex.com/spar-2024/feature-browser/)_
 
 # spar-2024
 
